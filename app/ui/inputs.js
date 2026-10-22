@@ -19,6 +19,8 @@ import {
  * @property {(mode: 'centre' | 'edges') => void} onBuildingMode
  * @property {(mode: 'pointwise' | 'width') => void} onFieldMode
  * @property {(tied: boolean) => void} onTied
+ * @property {(show: boolean) => void} onAllFields
+ * @property {() => void} onReset  all inputs back to the defaults
  */
 
 /**
@@ -109,6 +111,10 @@ export function renderInputs(container, on) {
                                (v) => on.onFieldMode(v === 'width' ? 'width' : 'pointwise'));
     const tied = /** @type {HTMLInputElement} */ (h('input', { type: 'checkbox', id: 'in-tied' }));
     tied.addEventListener('change', () => on.onTied(tied.checked));
+    const allFields = /** @type {HTMLInputElement} */ (h('input', { type: 'checkbox', id: 'in-all-fields' }));
+    allFields.addEventListener('change', () => on.onAllFields(allFields.checked));
+    const reset = h('button', { type: 'button', id: 'reset-defaults' }, ['Reset to defaults']);
+    reset.addEventListener('click', () => on.onReset());
 
     container.append(
         h('fieldset', {}, [h('legend', {}, ['Tunnels']), countSeg, spacingRow, ...tunnelBoxes]),
@@ -119,8 +125,10 @@ export function renderInputs(container, on) {
         h('fieldset', {}, [
             h('legend', {}, ['Assessment']), fieldSeg, field(FIELD_WIDTH_FIELD),
             h('label', { class: 'check', for: 'in-tied' }, [tied, ' Floors tied / grade beam (f_L = 0)']),
+            h('label', { class: 'check', for: 'in-all-fields' }, [allFields, ' Show all fields']),
             field(FL_FIELD), field(DX_FIELD),
         ]),
+        h('div', { class: 'actions form-actions' }, [reset]),
     );
 
     /**
@@ -143,6 +151,7 @@ export function renderInputs(container, on) {
         setSeg(buildingSeg, s.buildingMode);
         setSeg(fieldSeg, s.fieldMode);
         tied.checked = s.floorsTied;
+        allFields.checked = s.allFields;
         tunnelBoxes[1].hidden = s.count !== 2;
         /** @type {HTMLElement} */ (tunnelBoxes[0].firstChild).hidden = s.count !== 2;
         const active = new Set(activeFields(s).map((f) => f.path));

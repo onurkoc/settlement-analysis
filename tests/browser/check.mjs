@@ -568,6 +568,31 @@ try {
     check('field ticks in the building plot', (await evaluate('window.app.plots.debug.building.plot.renderers[1].data_source.data.x.length')) === 3);
     await shot('desktop_fields_b5', 1366, 900, false);
 
+    // ---- "Show all fields": points of all fields only on request -----------
+    const FIELDS = `(() => {
+        const d = window.app.plots.debug.damage;
+        const item = d.plot.below.find((m) => m.type === 'Legend').items.find((i) => i.label.value === 'Fields');
+        const hover = d.plot.toolbar.tools.find((t) => t.type === 'HoverTool' && t.renderers.includes(d.fields));
+        return { points: d.fields.visible, legend: item.visible, box: document.getElementById('in-all-fields').checked,
+                 n: d.fields.data_source.data.x.length, tips: hover ? hover.tooltips.map((q) => q[0]).join(',') : '' };
+    })()`;
+    let fl = await evaluate(FIELDS);
+    check('default: no field points, no legend entry "Fields", checkbox off', !fl.points && !fl.legend && !fl.box, fl);
+    await evaluate(`document.getElementById('in-all-fields').click()`);
+    await settle();
+    fl = await evaluate(FIELDS);
+    check('"Show all fields" on: points and legend entry visible, fld=1 in the hash, hover with field and ε_p',
+          fl.points && fl.legend && fl.box && fl.n === 4 && (await evaluate('location.hash')).endsWith('&fld=1')
+          && /Field/.test(fl.tips) && /ε_p/.test(fl.tips), fl);
+    await shot('desktop_all_fields', 1366, 900, false);
+    // button "Reset to defaults": all inputs and the checkbox back to the defaults
+    await evaluate(`document.getElementById('reset-defaults').click()`);
+    await settle();
+    fl = await evaluate(FIELDS);
+    check('"Reset to defaults": default hash, field points hidden, checkbox off', !fl.points && !fl.legend && !fl.box
+          && (await evaluate('location.hash')) === '#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1'
+          && (await evaluate(`document.getElementById('in-tunnels-0-H').value`)) === '30', fl);
+
     // ---- legacy curves ---------------------------------------------------
     await evaluate(`document.getElementById('legacy').click()`);
     await settle();

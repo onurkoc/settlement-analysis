@@ -178,6 +178,7 @@ body.stale .plots, body.stale .results { opacity: .45; }
 .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .results-head h2 { font-size: 18px; margin: 0; }
 .actions { display: flex; gap: 8px; }
+.form-actions { justify-content: flex-end; margin-top: 12px; }
 .actions button {
   border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 12px;
   cursor: pointer; font-size: 14px; font-weight: 600;

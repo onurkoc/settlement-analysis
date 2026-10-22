@@ -5,7 +5,7 @@ results. BokehJS is loaded as a classic script (window.Bokeh) by
 index.html and passed to the plot modules.
 */
 import {
-    decodeHash, encodeHash, validate, cloneState, setPath, switchTunnels, switchBuildingMode,
+    decodeHash, encodeHash, validate, cloneState, setPath, switchTunnels, switchBuildingMode, defaultState,
 } from './state.js';
 import { compute, summaryRows } from './model.js';
 import { buildCsv } from './csv.js';
@@ -49,6 +49,8 @@ async function main() {
         onBuildingMode(mode) { replace(switchBuildingMode(state, mode)); },
         onFieldMode(mode) { change((s) => { s.fieldMode = mode; }); },
         onTied(tied) { change((s) => { s.floorsTied = tied; }); },
+        onAllFields(show) { change((s) => { s.allFields = show; }); },
+        onReset() { replace(defaultState()); },
     });
 
     const plots = await createPlots(B, {
@@ -83,6 +85,7 @@ async function main() {
         inputs.sync(state, errors);
         /** @type {HTMLInputElement} */ ($('legacy')).checked = state.legacy;
         plots.showLegacy(state.legacy);
+        plots.showAllFields(state.allFields);
         const invalid = Object.keys(errors).length > 0;
         $('msg').hidden = !invalid;
         document.body.classList.toggle('stale', invalid);

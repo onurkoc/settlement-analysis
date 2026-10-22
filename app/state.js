@@ -38,6 +38,8 @@ Only the building moves.
  * @property {number} fL  factor on the lateral strain [-]
  * @property {number} dx  grid step [m]
  * @property {boolean} legacy  show the legacy curves
+ * @property {boolean} allFields  show the points of all fields in the damage
+ *     plot (default: only the governing field, as in the earlier app)
  */
 
 /**
@@ -83,6 +85,7 @@ export function defaultState() {
         fL: 1,
         dx: 0.1,
         legacy: false,
+        allFields: false,
     };
 }
 
@@ -378,6 +381,7 @@ export function encodeHash(s) {
     parts.push(s.floorsTied ? 'tied=1' : `fl=${num(s.fL)}`);
     parts.push(`dx=${num(s.dx)}`);
     if (s.legacy) parts.push('leg=1');
+    if (s.allFields) parts.push('fld=1');
     return parts.join('&');
 }
 
@@ -446,5 +450,6 @@ export function decodeHash(hash) {
     }
     if (q.get('dx') !== null) s.dx = parseNum(/** @type {string} */ (q.get('dx')));
     s.legacy = q.get('leg') === '1';
+    s.allFields = q.get('fld') === '1';
     return s;
 }

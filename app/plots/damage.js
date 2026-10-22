@@ -114,20 +114,23 @@ export function createDamagePlot(B, th) {
     const legacy = legacyCurves().map((c) => p.line(c.beta.map((v) => v * 1000), c.epsL.map((v) => v * 1000),
                                                      { line_width: 1.5, line_dash: [6, 4], visible: false }));
 
-    const fields = new B.ColumnDataSource({ data: { x: [], y: [] } });
+    const fields = new B.ColumnDataSource({ data: { x: [], y: [], loc: [], epsP: [] } });
     const gov = new B.ColumnDataSource({
         data: { x: [], y: [], loc: [], beta: [], epsL: [], epsLEff: [], epsP: [], cat: [], color: [] },
     });
+    // points of all fields: hidden by default, as in the earlier app only
+    // one point per building (the governing field)
     const rFields = p.scatter({ x: { field: 'x' }, y: { field: 'y' }, source: fields, size: 5, marker: 'circle',
-                                fill_alpha: 0.7, line_alpha: 0 });
+                                fill_alpha: 0.7, line_alpha: 0, visible: false });
     const rGov = p.scatter({ x: { field: 'x' }, y: { field: 'y' }, source: gov, size: 15, marker: 'diamond',
                              fill_color: { field: 'color' }, line_width: 1.5 });
 
+    const fieldsItem = new B.LegendItem({ label: 'Fields', renderers: [rFields], visible: false });
     const legacyItem = new B.LegendItem({ label: 'Boscardin & Cording (1989)', renderers: [legacy[0]], visible: false });
     const legend = new B.Legend({
         items: [
             ...cats.map((c, k) => new B.LegendItem({ label: `${c.label} ${c.name}`, renderers: [areas[k]] })),
-            new B.LegendItem({ label: 'Fields', renderers: [rFields] }),
+            fieldsItem,
             new B.LegendItem({ label: 'Governing field', renderers: [rGov] }),
             legacyItem,
         ],
@@ -146,6 +149,16 @@ export function createDamagePlot(B, th) {
             ['ε_L,eff', '@epsLEff{0.000} ×10⁻³'],
             ['ε_p', '@epsP{0.000} ×10⁻³'],
             ['Category', '@cat'],
+        ],
+    }));
+    // only drawn (and inspected) while the points are visible
+    p.add_tools(new B.HoverTool({
+        renderers: [rFields],
+        tooltips: [
+            ['Field', '@loc m'],
+            ['β', '@x{0.000} ×10⁻³'],
+            ['ε_L,eff', '@y{0.000} ×10⁻³'],
+            ['ε_p', '@epsP{0.000} ×10⁻³'],
         ],
     }));
 
@@ -172,7 +185,10 @@ export function createDamagePlot(B, th) {
         const g = r.building.governing;
         const c = r.building.category;
         level = c.level;
-        fields.data = { x: f.beta.map((v) => v * 1000), y: f.epsLEff.map((v) => v * 1000) };
+        fields.data = {
+            x: f.beta.map((v) => v * 1000), y: f.epsLEff.map((v) => v * 1000),
+            loc: f.xa.map((a, k) => formatRange(a, f.xb[k])), epsP: f.epsP.map((v) => v * 1000),
+        };
         gov.data = {
             x: [g.beta * 1000], y: [g.epsLEff * 1000],
             loc: [formatRange(g.xa, g.xb)],
@@ -191,6 +207,12 @@ export function createDamagePlot(B, th) {
         legacyItem.visible = show;
     }
 
+    /** @param {boolean} show  points of all fields and their legend entry */
+    function showAllFields(show) {
+        rFields.visible = show;
+        fieldsItem.visible = show;
+    }
+
     /**
      * Legend in one column on a narrow screen, four otherwise.
      * @param {boolean} narrow
@@ -199,5 +221,5 @@ export function createDamagePlot(B, th) {
         legend.ncols = narrow ? 1 : 4;
     }
 
-    return { plot: p, update, setTheme, showLegacy, setNarrow };
+    return { plot: p, update, setTheme, showLegacy, showAllFields, setNarrow, fields: rFields };
 }

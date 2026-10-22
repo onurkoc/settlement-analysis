@@ -251,3 +251,17 @@ test('slider ranges as in the earlier app (spacing c: 5 ... 50 m)', () => {
     s.center = -40;
     assert.deepEqual(validate(s), {});
 });
+
+test('"Show all fields": default off, in the hash as fld=1, missing parameter = off', () => {
+    const s = defaultState();
+    assert.equal(s.allFields, false);
+    assert.ok(!encodeHash(s).includes('fld'));
+    assert.equal(decodeHash('#' + encodeHash(s)).allFields, false);
+    s.allFields = true;
+    assert.ok(encodeHash(s).endsWith('&fld=1'));
+    assert.equal(decodeHash('#' + encodeHash(s)).allFields, true);
+    s.allFields = false;
+    assert.equal(decodeHash('#' + encodeHash(s)).allFields, false);
+    assert.equal(decodeHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=5&fl=1&dx=0.1').allFields, false);
+    assert.equal(decodeHash('').allFields, false);
+});

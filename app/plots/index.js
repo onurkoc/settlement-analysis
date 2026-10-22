@@ -126,6 +126,7 @@ export async function createPlots(B, el) {
         setTheme,
         setNarrow,
         showLegacy: damage.showLegacy,
+        showAllFields: damage.showAllFields,
         /** views, ranges and the PNG export, for the headless checks */
         debug: { views, building, trough, damage, sharedX, pngBlob, alignFrames },
     };
