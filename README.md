@@ -62,7 +62,8 @@ eh(x)    = dSh/dx = Σ S_j/H_j · ((x − x_j)²/i_j² − 1)   extension positi
 
 The horizontal displacement points to the tunnel axis (O'Reilly & New
 1982). Grid step Δx = 0.1 m (adjustable), range ±(max|x_j| + 3·max i_j),
-widened to include the building.
+widened to include the building, and at least ±50 m (the fixed x range
+of the plots).
 
 ### Building and damage (`app/core/building.js`, `app/core/damage.js`)
 
@@ -122,12 +123,16 @@ the category.
   between closely spaced tunnels (narrow pillar) is not considered. The
   spacing must be at least (D1 + D2)/2.
 - Crown cover H − D/2 of each tunnel at least 1.0 m (input check).
-- The tunnel is drawn as a circle in screen units; crown and invert are
-  exact on the depth axis, the width on the x axis is approximate.
-- Trough plot divided as in the earlier app: curves down to −5·S_max in
-  the upper part, tunnels below (depth axis down to the deepest invert
-  + 5 m), x range at least ±50 m. A shallow tunnel can reach into the
+- The tunnel is drawn as in the original app: a circle with radius D/2
+  in x units; crown and invert are approximate on the depth axis.
+- Plot ranges fixed as in the original app: x −50 … 50 m, settlement
+  −149 … 30 mm, depth −40 … 8 m; y = 0 lies at the same height on both
+  axes of the trough plot. No input changes the ranges; pan and zoom
+  move the view, Reset goes back to these ranges. A large settlement or
+  a deep tunnel can leave the frame, a shallow tunnel can reach into the
   curves.
+- Plots at most 950 px wide (as in the original app), narrower on a
+  small screen; trough plot 600 px, building plot 100 px high.
 - Tilt = slope of the chord over the whole building (beam assumption,
   Cording et al. 2010, Fig. 5b). If the distortion concentrates in one
   bay and the rest of the building only tilts (Fig. 5a), the real tilt
@@ -160,8 +165,9 @@ the category.
   difference to the corrected values (see
   [docs/LEGACY_NOTES.md](docs/LEGACY_NOTES.md), in German).
 - `tests/browser/check.mjs`: headless check in Microsoft Edge (console,
-  requests, results against the core, alignment of the axes, phone
-  layout, dark mode, PNG export, tab «Information»).
+  requests, results against the core, fixed axis ranges after input
+  changes and Reset, round tunnel circles, alignment of the axes, crown
+  cover check, phone layout, dark mode, PNG export, tab «Information»).
 
 Not yet done: an independent check by the author with other programs
 (the CSV export is meant for it).

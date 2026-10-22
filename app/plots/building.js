@@ -4,6 +4,7 @@ Plot "Building position": the building as a bar; in the field mode the
 field edges as thin ticks. Shares the x range with the trough plot.
 */
 import { applyFrame, setGlyph, TOOLS } from './theme.js';
+import { BUILDING_Y_RANGE } from './ranges.js';
 
 /** @typedef {import('./theme.js').Theme} Theme */
 /** @typedef {import('../model.js').Result} Result */
@@ -16,10 +17,12 @@ import { applyFrame, setGlyph, TOOLS } from './theme.js';
 export function createBuildingPlot(B, xRange, th) {
     const p = B.Plotting.figure({
         title: 'Building position',
-        height: 120,
+        // height as in the earlier app
+        height: 100,
         sizing_mode: 'stretch_width',
         x_range: xRange,
-        y_range: new B.Range1d({ start: 0, end: 1 }),
+        y_range: new B.Range1d({ start: BUILDING_Y_RANGE[0], end: BUILDING_Y_RANGE[1],
+                                 reset_start: BUILDING_Y_RANGE[0], reset_end: BUILDING_Y_RANGE[1] }),
         tools: TOOLS,
         toolbar_location: 'above',
     });

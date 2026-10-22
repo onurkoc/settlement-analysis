@@ -168,7 +168,9 @@ Vorher lokal: `npm test` und `node tests/browser/check.mjs` grün.
    «2 – Slight», ε_p = 1.051·10⁻³. Die Gebäudekanten liegen im oberen
    und im mittleren Diagramm genau übereinander, auch nach Zoom und
    Verschieben. Die Nullpunkte beider y-Achsen im Muldendiagramm liegen
-   auf gleicher Höhe.
+   auf gleicher Höhe. Die Achsenbereiche bleiben bei jeder Eingabe gleich
+   (x −50…50 m, Setzung −149…30 mm, Tiefe −40…8 m); nach Zoom führt
+   Reset auf diese Bereiche zurück. Diagramme höchstens 950 px breit.
 5. **Phone.** Auf einem echten Handy öffnen: Eingaben eingeklappt über
    den Diagrammen, aufklappbar, kein seitliches Scrollen, Zahlentastatur
    in den Eingabefeldern, Legenden unter den Diagrammen.

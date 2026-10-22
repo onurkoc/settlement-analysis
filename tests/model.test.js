@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { defaultState, switchTunnels, cloneState } from '../app/state.js';
 import { compute, summaryRows, coreTunnels, modeText } from '../app/model.js';
 import { buildCsv, cell, SEP, EOL } from '../app/csv.js';
-import { alignZero, zeroFraction, troughRanges, damageRanges, xRange } from '../app/plots/ranges.js';
+import { zeroFraction, damageRanges, X_RANGE, BUILDING_Y_RANGE, TROUGH_Y_RANGE, DEPTH_RANGE } from '../app/plots/ranges.js';
 import { troughProfile } from '../app/core/trough.js';
 import { categoryAreas, areaLabelPosition } from '../app/plots/damage.js';
 import { limitCurves, principalStrain, DAMAGE_LIMITS } from '../app/core/damage.js';
@@ -108,22 +108,15 @@ test('CSV cells: numbers in full precision, no separators in text', () => {
     assert.equal(cell('a;b\nc'), 'a b c');
 });
 
-test('zero of both y axes at the same height, data inside', () => {
-    const cases = [[-10, 2, -40, 5], [-1, 5, -60, 3], [-0.2, 0.1, -10, 1]];
-    for (const [a, b, c, d] of cases) {
-        const [lo1, hi1, lo2, hi2] = alignZero(a, b, c, d);
-        assert.ok(Math.abs(zeroFraction(lo1, hi1) - zeroFraction(lo2, hi2)) < 1e-12);
-        // lower ends extended or kept (up to rounding), upper ends kept
-        assert.ok(lo1 <= a * (1 - 1e-12) && hi1 === b && lo2 <= c * (1 - 1e-12) && hi2 === d);
-    }
-    for (const s of [ONE, TWO]) {
-        const r = compute(s);
-        const frame = { width: 800, height: 330, xSpan: 2 * r.R };
-        const { y, depth } = troughRanges(r, frame);
-        assert.ok(Math.abs(zeroFraction(...y) - zeroFraction(...depth)) < 1e-12);
-        assert.ok(y[0] < -r.trough.Smax * 1000);
-        assert.ok(depth[0] < -Math.max(...r.tunnels.map((t) => t.H)));
-    }
+test('ranges of the building and trough plots fixed as in the earlier app', () => {
+    assert.deepEqual(X_RANGE, [-50, 50]);
+    assert.deepEqual(BUILDING_Y_RANGE, [0, 1]);
+    assert.deepEqual(TROUGH_Y_RANGE, [-149, 30]);
+    assert.deepEqual(DEPTH_RANGE, [-40, 8]);
+    assert.ok(Object.isFrozen(X_RANGE) && Object.isFrozen(TROUGH_Y_RANGE) && Object.isFrozen(DEPTH_RANGE));
+    // zero of both axes: 0.8324 and 0.8333 of the height below zero
+    // (values of the earlier app), less than 1 px apart on a 600 px plot
+    assert.ok(Math.abs(zeroFraction(...TROUGH_Y_RANGE) - zeroFraction(...DEPTH_RANGE)) * 600 < 1);
 });
 
 test('damage plot range: 0…7 × 0…4 (from a little below 0), extended for large values', () => {
@@ -167,37 +160,10 @@ test('category names inside their areas', () => {
     }
 });
 
-test('trough plot as in the earlier app: curves above, tunnels below, crown and invert on the depth axis', () => {
-    for (const H of [7.5, 30, 50]) {
-        for (const D of [2, 10, 20]) {
-            if (H - D / 2 < 1) continue;      // not valid: crown cover < 1.0 m
-            for (const count of [1, 2]) {
-                let s = defaultState();
-                s.tunnels[0] = { H, D, VL: 1, K: 0.35 };
-                if (count === 2) {
-                    s = switchTunnels(s, 2);
-                    s.c = Math.max(13.5, D);
-                }
-                const r = compute(s);
-                const { y, depth } = troughRanges(r);
-                const label = `H=${H} D=${D} n=${count}`;
-                // left axis from −5·S_max (combined trough)
-                assert.ok(Math.abs(y[0] + 5 * r.trough.Smax * 1000) < 1e-9 || y[0] < -5 * r.trough.Smax * 1000, label);
-                assert.ok(y[1] > 0 && y[1] >= Math.max(...r.trough.Sh) * 1000, label);
-                // right axis down to the deepest invert + 5 m
-                assert.equal(depth[0], -(H + D / 2 + 5), label);
-                assert.ok(Math.abs(zeroFraction(...y) - zeroFraction(...depth)) < 1e-12, label);
-                // the crown lies below the ground line
-                assert.ok(-(H - D / 2) < 0 && -(H - D / 2) < depth[1], label);
-            }
-        }
-    }
-});
-
 test('default 1 and 2 tunnels: settlement curve and tunnels do not overlap', () => {
     for (const s of [ONE, TWO]) {
         const r = compute(s);
-        const { y, depth } = troughRanges(r);
+        const [y, depth] = [TROUGH_Y_RANGE, DEPTH_RANGE];
         // fractions of the height from the top
         const curveBottom = (y[1] + Math.max(...r.trough.S) * 1000) / (y[1] - y[0]);   // lowest point of S
         const crown = Math.min(...r.tunnels.map((t) => (depth[1] + t.H - t.D / 2) / (depth[1] - depth[0])));

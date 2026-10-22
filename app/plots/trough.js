@@ -2,19 +2,26 @@
 /*
 Plot "Settlement trough": settlement and horizontal displacement [mm]
 on the left axis (settlement drawn downwards), tunnels on the right
-axis (depth [m]); y = 0 of both axes at the same height.
+axis (depth [m]). Both y ranges are fixed as in the earlier app (see
+app/plots/ranges.js), so y = 0 lies at the same height on both axes.
 */
 import { applyFrame, setGlyph, TOOLS } from './theme.js';
-import { troughRanges } from './ranges.js';
+import { TROUGH_Y_RANGE, DEPTH_RANGE } from './ranges.js';
 import { formatSlopeN, slopeToN } from '../core/units.js';
 import { tunnelAt } from '../core/trough.js';
 
 /** @typedef {import('./theme.js').Theme} Theme */
 /** @typedef {import('../model.js').Result} Result */
 
-/** Height of the plot [px]: as in the earlier app, lower on a phone. */
+/** Height of the plot [px], as in the earlier app. */
 const HEIGHT = 600;
-const HEIGHT_NARROW = 440;
+
+/**
+ * Fixed range with the same values for Reset.
+ * @param {any} B
+ * @param {readonly [number, number]} r
+ */
+const fixedRange = (B, r) => new B.Range1d({ start: r[0], end: r[1], reset_start: r[0], reset_end: r[1] });
 
 /**
  * @param {any} B  window.Bokeh
@@ -22,8 +29,8 @@ const HEIGHT_NARROW = 440;
  * @param {Theme} th
  */
 export function createTroughPlot(B, xRange, th) {
-    const yRange = new B.Range1d({ start: -40, end: 5 });
-    const depthRange = new B.Range1d({ start: -40, end: 5 });
+    const yRange = fixedRange(B, TROUGH_Y_RANGE);
+    const depthRange = fixedRange(B, DEPTH_RANGE);
     const p = B.Plotting.figure({
         title: 'Settlement trough',
         height: HEIGHT,
@@ -59,10 +66,10 @@ export function createTroughPlot(B, xRange, th) {
     const rT2 = p.line({ field: 'x' }, { field: 'S2' }, { source: curves, line_width: 1.5, line_dash: [4, 3] });
     const rS = p.line({ field: 'x' }, { field: 'S' }, { source: curves, line_width: 2.5 });
     const rSh = p.line({ field: 'x' }, { field: 'Sh' }, { source: curves, line_width: 2 });
-    // tunnel as a circle with the radius D/2 measured on the depth axis:
-    // round on the screen, crown and invert exactly at −(H ∓ D/2) on the
-    // depth axis, only the width on the x axis is approximate
-    const rC = p.circle({ x: { field: 'x' }, y: { field: 'y' }, radius: { field: 'r' }, radius_dimension: 'y',
+    // tunnel as in the earlier app: a circle with the radius D/2 in x
+    // units, centre at −H on the depth axis; crown and invert are
+    // approximate on the depth axis
+    const rC = p.circle({ x: { field: 'x' }, y: { field: 'y' }, radius: { field: 'r' }, radius_dimension: 'x',
                           source: tunnels, y_range_name: 'depth', fill_alpha: 0.35, line_width: 1.5 });
     const rI = p.scatter({ x: { field: 'x' }, y: { field: 'y' }, source: inflections, size: 8, marker: 'circle',
                            line_width: 1.5 });
@@ -178,20 +185,15 @@ export function createTroughPlot(B, xRange, th) {
         governingLine.setv({ location: (g.xa + g.xb) / 2, visible: pointwise });
         level = r.building.category.level;
         governingColour();
-
-        const { y, depth } = troughRanges(r);
-        yRange.setv({ start: y[0], end: y[1], reset_start: y[0], reset_end: y[1] });
-        depthRange.setv({ start: depth[0], end: depth[1], reset_start: depth[0], reset_end: depth[1] });
     }
 
     /**
-     * Narrow screen: legend as a list (Bokeh does not wrap it) and a
-     * lower plot; otherwise one row and the height of the earlier app.
+     * Narrow screen: legend as a list (Bokeh does not wrap it),
+     * otherwise one row. The height stays as in the earlier app.
      * @param {boolean} narrow
      */
     function setNarrow(narrow) {
         legend.ncols = narrow ? 1 : 5;
-        p.height = narrow ? HEIGHT_NARROW : HEIGHT;
     }
 
     return { plot: p, update, setTheme, setNarrow, yRange, depthRange, circles: rC, curves: [rS, rSh, rT1, rT2] };

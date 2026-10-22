@@ -102,6 +102,32 @@ Röhren liegen symmetrisch bei ±Distance/2.
   [onurkoc/boscardin-cording](https://github.com/onurkoc/boscardin-cording)
   (`settlement.py`, Funktion `spline`).
 
+### 1.5 Feste Achsenbereiche (bewusste Lösung, übernommen)
+
+- In den fertigen Apps sind alle Bereiche fest; kein Callback ändert sie:
+  - «Building Position» (`Plot 13646` bzw. `1175`): x −50…50 m, y 0…1.
+  - «Settlement trough» (`Plot 13299` bzw. `1017`): x −50…50 m,
+    `y_range` −0.149…0.03 m, `extra_y_ranges['yaxis2']` (Tiefe) −40…8 m.
+- Notebook `Code_for_App_TwoTunnels.html`, Zelle 10 (gleich in
+  `Code_for_App_OneTunnel.html`): `y1 = -s_1.max()*5; y2 = 0.03` und
+  `p1.extra_y_ranges = {"yaxis2": Range1d(start=max_depth[0], end=8)}
+  # ends at 10 in order to match both y axis at zero!` – die Werte
+  wurden einmal für die Default-Eingaben bestimmt und dann festgelegt.
+- Die beiden y-Bereiche sind so gewählt, dass die Nullpunkte beider
+  Achsen auf gleicher Höhe liegen: 0.149/0.179 = 0.832 und 40/48 = 0.833
+  der Höhe liegen unter null (Unterschied unter 1 px). Weil die Bereiche
+  fest sind, gilt das für jede Eingabe, und alle Fälle werden im selben
+  Massstab gezeichnet. Grosse Setzungen oder tiefe Tunnel können dafür
+  aus dem Bild laufen.
+- Tunnelkreis (`Circle 13396` bzw. `1083`/`1111`): Radius D/2 ohne
+  `radius_dimension`, also in x-Einheiten (Bokeh-Standard `'x'`);
+  Mittelpunkt bei −H auf der Tiefenachse. Scheitel und Sohle liegen auf
+  der Tiefenachse deshalb nur ungefähr bei −(H ∓ D/2).
+- Neue App: dieselben festen Bereiche (Setzung in mm: −149…30 mm) und
+  derselbe Kreis. Pan und Zoom verschieben nur die Ansicht, Reset führt
+  auf die festen Bereiche zurück. Höhe der Diagramme wie in der
+  Legacy-App (100 px bzw. 600 px), Breite höchstens 950 px.
+
 ## 2 Fehler (werden nicht übernommen)
 
 ### Fehler 1 – Schadenspunkt x: (max S − min S)/L statt β = S' − Ω
@@ -198,24 +224,7 @@ Röhren liegen symmetrisch bei ±Distance/2.
 - Neu: jede Röhre j hat eine Lage x_j; Kurve, Kreis, Achs-Span und
   Hover verwenden dasselbe x_j.
 
-### Fehler 7 – Nullpunktabgleich der y-Achsen nur für Default-Werte
-
-- Notebook `Code_for_App_TwoTunnels.html`, Zelle 10:
-  `y1 = -s_1.max()*5; y2 = 0.03` und
-  `p1.extra_y_ranges = {"yaxis2": Range1d(start=max_depth[0], end=8)}
-  # ends at 10 in order to match both y axis at zero!`
-  (gleich in `Code_for_App_OneTunnel.html`).
-- In den fertigen Apps: `Plot 13299` (1 Röhre) bzw. `Plot 1017`
-  (2 Röhren): `y_range` −0.149…0.03, `yaxis2` −40…8, fest. Kein
-  Callback ändert die Bereiche.
-- Die Nullpunkte fallen nur zusammen, weil 0.149/0.179 ≈ 40/48 für die
-  Default-Werte gilt. Bei anderer Tiefe, VL, D oder k verschieben sich
-  die Nullpunkte gegeneinander, Kurven können aus dem Bild laufen, und
-  tiefe Tunnel liegen unter dem Bereich.
-- Neu: beide Bereiche werden bei jeder Eingabe aus den Daten berechnet,
-  so dass y = 0 auf beiden Achsen auf derselben Pixelhöhe liegt.
-
-### Fehler 8 – Mehrfach registrierte Callbacks
+### Fehler 7 – Mehrfach registrierte Callbacks
 
 - `Settlement_OneTunnel.html`: Das Notebook wurde mehrfach ausgeführt;
   die Slider k, D, H tragen je 20, VL 25 Callbacks (Generationen

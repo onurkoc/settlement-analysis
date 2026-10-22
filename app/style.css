@@ -163,8 +163,9 @@ legend { font-weight: 700; font-size: 15px; padding: 0; }
 
 /* plots */
 .plots { padding: 8px 8px 4px; min-width: 0; overflow: hidden; }
-.plot { width: 100%; min-width: 0; }
-.plot-bar { display: flex; justify-content: flex-end; padding: 4px 8px 0; }
+/* at most as wide as in the earlier app (950 px), narrower on a small screen */
+.plot { width: 100%; min-width: 0; max-width: 950px; }
+.plot-bar { display: flex; justify-content: flex-end; padding: 4px 8px 0; max-width: 950px; }
 .plot-bar .check { margin: 0; }
 .msg {
   border: 1px solid var(--error); color: var(--error); background: var(--surface);

@@ -14,7 +14,7 @@ because of the shared range.
 import { createBuildingPlot } from './building.js';
 import { createTroughPlot } from './trough.js';
 import { createDamagePlot } from './damage.js';
-import { xRange } from './ranges.js';
+import { X_RANGE } from './ranges.js';
 import { readTheme } from './theme.js';
 
 /** @typedef {import('../model.js').Result} Result */
@@ -26,7 +26,9 @@ import { readTheme } from './theme.js';
  */
 export async function createPlots(B, el) {
     const th = readTheme();
-    const sharedX = new B.Range1d({ start: -50, end: 50 });
+    // fixed as in the earlier app; Reset goes back to it
+    const [x0, x1] = X_RANGE;
+    const sharedX = new B.Range1d({ start: x0, end: x1, reset_start: x0, reset_end: x1 });
     const building = createBuildingPlot(B, sharedX, th);
     const trough = createTroughPlot(B, sharedX, th);
     const damage = createDamagePlot(B, th);
@@ -68,8 +70,6 @@ export async function createPlots(B, el) {
     alignFrames();
     /** @param {Result} r */
     function update(r) {
-        const [a, b] = xRange(r);
-        sharedX.setv({ start: a, end: b, reset_start: a, reset_end: b });
         building.update(r);
         trough.update(r);
         damage.update(r);

@@ -6,7 +6,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     defaultState, validate, switchTunnels, switchBuildingMode, encodeHash, decodeHash, activeFields,
-    edgesOf, plotHalfWidth, cloneState, setPath, getPath, MAX_GRID_POINTS, parseNumber, axisPositions,
+    edgesOf, gridHalfWidth, cloneState, setPath, getPath, MAX_GRID_POINTS, parseNumber, axisPositions,
+    tunnelFields, SPACING_FIELD, BUILDING_CENTRE_FIELDS,
 } from '../app/state.js';
 import { checkTunnel } from '../app/core/trough.js';
 
@@ -121,7 +122,7 @@ test('validation: too fine grid or fields', () => {
     s.fieldMode = 'width';
     s.b = 1e-5;
     assert.match(validate(s).b, /Too fine/);
-    assert.ok(2 * Math.ceil(plotHalfWidth(defaultState()) / 0.01) + 1 < MAX_GRID_POINTS);
+    assert.ok(2 * Math.ceil(gridHalfWidth(defaultState()) / 0.01) + 1 < MAX_GRID_POINTS);
 });
 
 test('parseNumber: "." or ",", exponent; everything else NaN', () => {
@@ -137,16 +138,16 @@ test('parseNumber: "." or ",", exponent; everything else NaN', () => {
     }
 });
 
-test('plot range: at least ±50 m as in the earlier app, wider for a wide trough or the building', () => {
+test('grid of the curves: at least ±50 m (the plotted range), wider for a wide trough or the building', () => {
     const s = defaultState();
-    assert.equal(plotHalfWidth(s), 50);
-    assert.equal(plotHalfWidth(switchTunnels(s, 2)), 50);
+    assert.equal(gridHalfWidth(s), 50);
+    assert.equal(gridHalfWidth(switchTunnels(s, 2)), 50);
     const deep = cloneState(s);
     deep.tunnels[0].H = 60;
     deep.tunnels[0].K = 0.9;
-    assert.ok(Math.abs(plotHalfWidth(deep) - 3 * 0.9 * 60) < 1e-9);    // trough ±162 m
+    assert.ok(Math.abs(gridHalfWidth(deep) - 3 * 0.9 * 60) < 1e-9);    // trough ±162 m
     s.center = 60;
-    assert.equal(plotHalfWidth(s), 70 + 1);
+    assert.equal(gridHalfWidth(s), 70 + 1);
 });
 
 test('validation: crown cover H − D/2 >= 1.0 m for each tunnel, marks H and D', () => {
@@ -230,4 +231,23 @@ test('hash: missing keys keep defaults, bad numbers become NaN (shown as invalid
     assert.equal(two.c, 13.5);
     assert.equal(two.dx, 0.2);
     assert.ok(Number.isNaN(decodeHash('n=2&c=x&t1=25,9,1.2,0.4').c));
+});
+
+test('slider ranges as in the earlier app (spacing c: 5 ... 50 m)', () => {
+    /** @param {{path: string, min: number, max: number}[]} specs */
+    const ranges = (specs) => Object.fromEntries(specs.map((f) => [f.path, [f.min, f.max]]));
+    for (const j of [0, 1]) {
+        assert.deepEqual(ranges(tunnelFields(j)), {
+            [`tunnels.${j}.H`]: [7.5, 50], [`tunnels.${j}.D`]: [5, 20],
+            [`tunnels.${j}.VL`]: [0.1, 2], [`tunnels.${j}.K`]: [0.2, 0.9],
+        });
+    }
+    assert.deepEqual(ranges(BUILDING_CENTRE_FIELDS), { center: [-30, 30], L: [5, 50] });
+    assert.deepEqual(ranges([SPACING_FIELD]), { c: [5, 50] });
+    // the number field may go beyond the slider
+    const s = defaultState();
+    s.tunnels[0].D = 3;
+    s.L = 80;
+    s.center = -40;
+    assert.deepEqual(validate(s), {});
 });

@@ -59,7 +59,7 @@ export const DEFAULT_SPACING = 13.5;
 /** Smallest cover above the crown of a tunnel, H − D/2 [m]. */
 export const MIN_COVER = 1.0;
 
-/** Smallest half width of the plotted x range [m], as in the earlier app. */
+/** Smallest half width of the calculation grid [m], the plotted x range −50 … 50 m. */
 export const MIN_HALF_WIDTH = 50;
 
 /** Limits of the number of points, against a frozen browser. */
@@ -120,8 +120,9 @@ export function coverError(s, j) {
 }
 
 /**
- * Input fields of one tunnel (j = 0 or 1). Slider of H as in the earlier
- * app (7.5 ... 50 m); the number field may go beyond.
+ * Input fields of one tunnel (j = 0 or 1). Slider ranges as in the
+ * earlier app (H 7.5 ... 50 m, D 5 ... 20 m, VL 0.1 ... 2 %, K 0.2 ...
+ * 0.9); the number field may go beyond.
  * @param {number} j
  * @returns {FieldSpec[]}
  */
@@ -130,9 +131,9 @@ export function tunnelFields(j) {
     return [
         { path: p + 'H', label: 'Axis depth H', unit: 'm', min: 7.5, max: 50, step: 0.5,
           check: (v, s) => positive(v) ?? coverError(s, j) },
-        { path: p + 'D', label: 'Equivalent diameter D', unit: 'm', min: 2, max: 20, step: 0.1,
+        { path: p + 'D', label: 'Equivalent diameter D', unit: 'm', min: 5, max: 20, step: 0.1,
           check: (v, s) => positive(v) ?? coverError(s, j) },
-        { path: p + 'VL', label: 'Volume loss VL', unit: '%', min: 0.1, max: 3, step: 0.05, check: nonNegative },
+        { path: p + 'VL', label: 'Volume loss VL', unit: '%', min: 0.1, max: 2, step: 0.05, check: nonNegative },
         { path: p + 'K', label: 'Trough width factor K', unit: '-', min: 0.2, max: 0.9, step: 0.01, check: positive },
     ];
 }
@@ -155,10 +156,14 @@ export const SPACING_FIELD = {
     },
 };
 
-/** @type {FieldSpec[]} */
+/**
+ * Slider ranges as in the earlier app (centre −30 ... 30 m, width 5 ...
+ * 50 m); the number field may go beyond.
+ * @type {FieldSpec[]}
+ */
 export const BUILDING_CENTRE_FIELDS = [
-    { path: 'center', label: 'Centre', unit: 'm', min: -60, max: 60, step: 0.5, check: finite },
-    { path: 'L', label: 'Width L', unit: 'm', min: 1, max: 100, step: 0.5, check: positive },
+    { path: 'center', label: 'Centre', unit: 'm', min: -30, max: 30, step: 0.5, check: finite },
+    { path: 'L', label: 'Width L', unit: 'm', min: 5, max: 50, step: 0.5, check: positive },
 ];
 
 /** @type {FieldSpec[]} */
@@ -238,13 +243,15 @@ export function axisPositions(s) {
 }
 
 /**
- * Half width of the plotted x range [m]: at least ±50 m as in the earlier
- * app; wider only if the trough ±(max|x_j| + 3·max i_j), the tunnels
- * (±(|x_j| + 0.6·D)) or the building (with a margin of 5 % of its width,
- * at least 1 m) go beyond.
+ * Half width of the grid of the trough curves [m]: at least ±50 m (the
+ * fixed x range of the plots, app/plots/ranges.js); wider if the trough
+ * ±(max|x_j| + 3·max i_j), the tunnels (±(|x_j| + 0.6·D)) or the
+ * building (with a margin of 5 % of its width, at least 1 m) go beyond,
+ * so the curves are there after a pan. The plot ranges do not depend on
+ * it.
  * @param {State} s
  */
-export function plotHalfWidth(s) {
+export function gridHalfWidth(s) {
     const tunnels = s.tunnels.slice(0, s.count);
     const R = Math.max(...axisPositions(s).map(Math.abs))
         + Math.max(...tunnels.map((t) => Math.max(3 * t.K * t.H, 0.6 * t.D)));
@@ -268,7 +275,7 @@ export function validate(s) {
     }
     if (Object.keys(errors).length > 0) return errors;
     const { xL, xR } = edgesOf(s);
-    const points = 2 * Math.ceil(plotHalfWidth(s) / s.dx) + 1;
+    const points = 2 * Math.ceil(gridHalfWidth(s) / s.dx) + 1;
     if (points > MAX_GRID_POINTS) {
         errors.dx = `Too fine: ${points} grid points (max. ${MAX_GRID_POINTS})`;
     }

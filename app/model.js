@@ -6,7 +6,7 @@ calls app/core/, no DOM.
 import { tunnelAt, inflection, symmetricGrid } from './core/trough.js';
 import { assessBuilding } from './core/building.js';
 import { percentToFraction, formatMm, formatE3, formatSlopeN, slopeToN } from './core/units.js';
-import { plotHalfWidth, axisPositions } from './state.js';
+import { gridHalfWidth, axisPositions } from './state.js';
 
 /** @typedef {import('./state.js').State} State */
 /** @typedef {import('./core/trough.js').Tunnel} Tunnel */
@@ -15,7 +15,7 @@ import { plotHalfWidth, axisPositions } from './state.js';
 /**
  * @typedef {Object} Result
  * @property {Tunnel[]} tunnels  SI input of the core
- * @property {number} R  half width of the plotted range [m]
+ * @property {number} R  half width of the grid of the trough curves [m]
  * @property {{x: number[], Sj: number[][], S: number[], dS: number[], Sh: number[], eh: number[], Smax: number}} trough
  * @property {BuildingResult} building
  * @property {{tunnel: number, x: number, S: number}[]} inflections
@@ -55,8 +55,8 @@ export function coreTunnels(s) {
  */
 export function compute(s) {
     const tunnels = coreTunnels(s);
-    const R = plotHalfWidth(s);
-    // same grid rule as troughProfile(), over the plotted range
+    const R = gridHalfWidth(s);
+    // same grid rule as troughProfile(), at least over the plotted range
     const x = symmetricGrid(R, s.dx);
     const Sj = tunnels.map(() => /** @type {number[]} */ ([]));
     const S = [], dS = [], Sh = [], eh = [];

@@ -4,10 +4,11 @@
 //     node tests/browser/check.mjs [--edge <path to msedge.exe>] [--python <path>]
 //
 // It starts serve.py on a free port, opens the app and checks: no console
-// errors, no requests to other hosts, zero of both y axes aligned after
-// input changes and zoom, result panel equal to assessBuilding() for the
-// default with one and two tunnels, invalid input, URL hash. Screenshots
-// go to docs/screenshots/web/.
+// errors, no requests to other hosts, fixed axis ranges as in the earlier
+// app after input changes, zoom and Reset, zero of both y axes aligned,
+// tunnel circles, result panel equal to assessBuilding() for the default
+// with one and two tunnels, invalid input, URL hash. Screenshots go to
+// docs/screenshots/web/.
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -50,12 +51,22 @@ const ORIGIN = `http://127.0.0.1:${appPort}`;
 
 let ws;
 try {
+    // the server must answer before the first navigation (a slow start of
+    // Python would otherwise give a page that never loads)
+    let up = false;
+    for (let i = 0; i < 300 && !up; i++) {
+        try { up = (await fetch(`${ORIGIN}/`)).ok; } catch { /* not yet */ }
+        if (!up) await sleep(100);
+    }
+    if (!up) throw new Error(`serve.py does not answer on ${ORIGIN} within 30 s`);
     let tabs = [];
-    for (let i = 0; i < 100 && !tabs.some((t) => t.type === 'page'); i++) {
+    for (let i = 0; i < 300 && !tabs.some((t) => t.type === 'page'); i++) {
         try { tabs = await (await fetch(`http://127.0.0.1:${cdpPort}/json/list`)).json(); } catch { /* not yet */ }
         await sleep(100);
     }
-    ws = new WebSocket(tabs.find((t) => t.type === 'page').webSocketDebuggerUrl);
+    const page = tabs.find((t) => t.type === 'page');
+    if (!page) throw new Error(`Edge has no page target on port ${cdpPort} within 30 s`);
+    ws = new WebSocket(page.webSocketDebuggerUrl);
     await new Promise((r) => ws.addEventListener('open', r));
     let id = 0;
     const pending = new Map();
@@ -88,10 +99,33 @@ try {
         pending.set(i, (m) => { clearTimeout(timer); resolve(m); });
         ws.send(JSON.stringify({ id: i, method, params }));
     });
+    // A protocol error (r.error) was ignored before and gave undefined, so
+    // a later check threw. During a navigation the context can be gone
+    // for a moment: retried; any other error throws with its message.
     const evaluate = async (expression) => {
-        const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-        if (r.result?.exceptionDetails) throw new Error(`${expression.slice(0, 80)}: ${r.result.exceptionDetails.exception?.description}`);
-        return r.result?.result?.value;
+        for (let attempt = 0; ; attempt++) {
+            const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+            if (r.error) {
+                if (attempt < 20 && /context|navigat/i.test(r.error.message)) {
+                    await sleep(100);
+                    continue;
+                }
+                throw new Error(`${expression.slice(0, 80)}: protocol error ${r.error.code} ${r.error.message}`);
+            }
+            if (r.result?.exceptionDetails) {
+                const d = r.result.exceptionDetails;
+                throw new Error(`${expression.slice(0, 80)}: ${d.exception?.description ?? d.text}`);
+            }
+            return r.result?.result?.value;
+        }
+    };
+    /** wait until the app has a result after a navigation; throws after 20 s */
+    const waitApp = async (what = 'result') => {
+        for (let i = 0; i < 200; i++) {
+            if (await evaluate(`Boolean(window.app && window.app.${what})`)) return;
+            await sleep(100);
+        }
+        throw new Error(`app without ${what} within 20 s`);
     };
     const viewport = async (width, height, mobile) => {
         await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: mobile ? 2 : 1, mobile });
@@ -140,11 +174,45 @@ try {
         return { diffs, same, rows: rows.filter((q) => !q.hidden).length,
                  gov: fresh.governing, cat: fresh.category.label + ' ' + fresh.category.name };
     })()`;
+    // y = 0 of both axes: the fixed ranges of the earlier app put them
+    // less than 1 px apart (149/179 and 40/48 of the height below zero)
     const ZERO = `(() => {
         const v = window.app.plots.debug.views.get_one(window.app.plots.debug.trough.plot);
         const f = v.frame;
         const a = f.y_scale.compute(0), b = f.y_scales.get('depth').compute(0);
-        return { left: a, right: b, ok: Math.abs(a - b) < 1e-6 };
+        return { left: Math.round(a * 100) / 100, right: Math.round(b * 100) / 100, ok: Math.abs(a - b) <= 1 };
+    })()`;
+    // axis ranges of the building and trough plots, fixed as in the earlier app
+    const RANGES = `(() => {
+        const d = window.app.plots.debug;
+        const r = (q) => [q.start, q.end];
+        const got = { x: r(d.sharedX), building: r(d.building.plot.y_range), y: r(d.trough.yRange), depth: r(d.trough.depthRange) };
+        const want = { x: [-50, 50], building: [0, 1], y: [-149, 30], depth: [-40, 8] };
+        return { got, ok: JSON.stringify(got) === JSON.stringify(want) };
+    })()`;
+    const checkRanges = async (label) => {
+        const r = await evaluate(RANGES);
+        check(`axis ranges fixed (x −50…50 m, S −149…30 mm, depth −40…8 m, building 0…1): ${label}`, r.ok, r.got);
+    };
+    // plot sizes [px]: height as in the earlier app, width at most 950 px
+    const SIZES = `(() => {
+        const d = window.app.plots.debug;
+        const box = (p) => { const v = d.views.get_one(p); return [Math.round(v.bbox.width), Math.round(v.bbox.height)]; };
+        return { building: box(d.building.plot), trough: box(d.trough.plot) };
+    })()`;
+    // centre of the Reset button in the toolbar of the trough plot
+    const RESET_BUTTON = `(() => {
+        let found = null;
+        const walk = (n) => {
+            if (found) return;
+            if (n.shadowRoot) walk(n.shadowRoot);
+            if (n.getAttribute && n.getAttribute('title') === 'Reset' && n.getBoundingClientRect().width > 0) { found = n; return; }
+            for (const c of n.children ?? []) walk(c);
+        };
+        walk(document.getElementById('plot-trough'));
+        if (!found) return null;
+        const r = found.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     })()`;
     // screen position of x = xL and x = xR in the building and trough plots
     const ALIGN = `(() => {
@@ -180,15 +248,16 @@ try {
     const SET_STATE = `async (s) => {
         const before = window.app.runs;
         window.app.set(s);
-        for (let i = 0; i < 200 && window.app.runs === before; i++) {
+        for (let i = 0; i < 1000 && window.app.runs === before; i++) {
             await new Promise((r) => setTimeout(r, 10));
         }
-        if (window.app.runs === before) throw new Error('state not calculated within 2 s');
+        if (window.app.runs === before) throw new Error('state not calculated within 10 s');
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 30))));
     }`;
-    // tunnel circles: round, crown at −(H − D/2) on the depth axis (1 px),
-    // below the ground line, inside the frame; H = 7.5/30/50, D = 2/10/20
-    // (valid combinations) and the limit case cover = 1.0 m
+    // tunnel circles as in the earlier app: radius D/2 in x units, centre
+    // at (x_j, −H) (1 px); H = 7.5/30/50, D = 2/10/20 (valid combinations)
+    // and the limit case cover = 1.0 m. With the fixed depth range a deep
+    // tunnel may leave the frame, as in the earlier app.
     const CIRCLES = `(async () => {
         const st = await import('./state.js');
         const setState = ${SET_STATE};
@@ -205,27 +274,73 @@ try {
                 const d = window.app.plots.debug;
                 const v = d.views.get_one(d.trough.plot);
                 const g = v.renderer_views.get(d.trough.circles).glyph;
-                const f = v.frame.bbox;
+                const xs = v.frame.x_scale;
                 const ys = v.frame.y_scales.get('depth');
-                const zero = ys.compute(0);
                 for (let j = 0; j < n; j++) {
                     const t = window.app.result.tunnels[j];
                     const r = g.sradius[j];
-                    const height = Math.abs(ys.compute(-t.H - t.D / 2) - ys.compute(-t.H + t.D / 2));
-                    const crown = g.sy[j] - r;
-                    const crownAxis = ys.compute(-(t.H - t.D / 2));
-                    const inside = crown >= f.top - 0.5 && g.sy[j] + r <= f.bottom + 0.5
-                        && g.sx[j] - r >= f.left - 0.5 && g.sx[j] + r <= f.right + 0.5;
-                    const below = crown > zero + (H - D / 2 <= 1 ? 2 : 0);
+                    const rx = Math.abs(xs.compute(t.x + t.D / 2) - xs.compute(t.x));
+                    const centre = Math.abs(g.sx[j] - xs.compute(t.x)) <= 1 && Math.abs(g.sy[j] - ys.compute(-t.H)) <= 1;
                     checked++;
-                    if (!(Math.abs(2 * r - height) <= 1 && Math.abs(crown - crownAxis) <= 1 && inside && below)) {
-                        out.push({ H, D, n, j, r2: 2 * r, height, crown, crownAxis, zero, inside, below });
-                    }
+                    if (!(Math.abs(r - rx) <= 1 && centre)) out.push({ H, D, n, j, r, rx, centre });
                 }
             }
         }
         return { bad: out, checked };
     })()`;
+    // round on the screen: radius of the drawn outline, measured in the PNG
+    // export (light theme) to the right and left (row through the centre)
+    // and up and down (column 4 px beside the dashed tunnel axis); each
+    // direction within 1 px of the radius
+    const ROUND = `(async (hash) => {
+        const before = window.app.runs;
+        location.hash = hash;
+        for (let i = 0; i < 1000 && window.app.runs === before; i++) await new Promise((r) => setTimeout(r, 10));
+        if (window.app.runs === before) throw new Error('state not calculated within 10 s');
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 30))));
+        const d = window.app.plots.debug;
+        const v = d.views.get_one(d.trough.plot);
+        const g = v.renderer_views.get(d.trough.circles).glyph;
+        const blob = await d.pngBlob('trough');
+        const img = await createImageBitmap(blob);
+        const c = new OffscreenCanvas(img.width, img.height);
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const scale = img.width / v.bbox.width;
+        const data = ctx.getImageData(0, 0, img.width, img.height).data;
+        const hex = (h) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16));
+        const cs = getComputedStyle(document.getElementById('theme-light'));
+        const muted = hex(cs.getPropertyValue('--muted').trim());
+        const bg = hex(cs.getPropertyValue('--surface').trim());
+        const dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+        const full = dist(bg, muted);
+        const weight = (x, y) => {
+            const k = 4 * (Math.round(y * scale) * img.width + Math.round(x * scale));
+            return Math.max(0, 1 - dist([data[k], data[k + 1], data[k + 2]], muted) / (0.5 * full));
+        };
+        // centroid of the outline along one direction from the centre
+        const edge = (cx, cy, ux, uy, expect) => {
+            let sw = 0, sd = 0;
+            for (let t = expect - 4; t <= expect + 4; t += 0.25) {
+                const w = weight(cx + ux * t, cy + uy * t);
+                sw += w;
+                sd += w * t;
+            }
+            return sw > 0 ? sd / sw : NaN;
+        };
+        const round2 = (q) => Math.round(q * 100) / 100;
+        const res = [];
+        for (let j = 0; j < g.sx.length; j++) {
+            const cx = g.sx[j], cy = g.sy[j], r = g.sradius[j];
+            const off = 4, rv = Math.sqrt(r * r - off * off);
+            const m = { right: edge(cx, cy, 1, 0, r), left: edge(cx, cy, -1, 0, r),
+                        up: Math.hypot(off, edge(cx + off, cy, 0, -1, rv)), down: Math.hypot(off, edge(cx + off, cy, 0, 1, rv)) };
+            const vals = Object.values(m);
+            res.push({ r: round2(r), ...Object.fromEntries(Object.entries(m).map(([k, q]) => [k, round2(q)])),
+                       ok: vals.every((q) => Math.abs(q - r) <= 1) });
+        }
+        return res;
+    })`;
     // default 1 and 2 tunnels: lowest point of the curves above the highest crown [px]
     const OVERLAP = `(() => {
         const d = window.app.plots.debug;
@@ -259,7 +374,7 @@ try {
     // ---- desktop, one tunnel (default) ---------------------------------
     await viewport(1366, 900, false);
     await send('Page.navigate', { url: `${ORIGIN}/` });
-    for (let i = 0; i < 100 && !(await evaluate('Boolean(window.app && window.app.ready)')); i++) await sleep(100);
+    await waitApp('ready');
     await settle();
     check('app started', await evaluate('Boolean(window.app && window.app.result)'));
     check('each plot in its own element', await evaluate(`['plot-building', 'plot-trough', 'plot-damage'].every((id) => document.getElementById(id).querySelectorAll(':scope > .bk-Figure').length === 1)`),
@@ -270,7 +385,11 @@ try {
     let panel = await evaluate(PANEL_CHECK);
     check('panel = assessBuilding(), 1 tunnel', panel.diffs.length === 0 && panel.same,
           { diffs: panel.diffs, rows: panel.rows, cat: panel.cat, epsP: panel.gov.epsP });
-    check('zero of both y axes aligned, 1 tunnel', (await evaluate(ZERO)).ok, await evaluate(ZERO));
+    check('zero of both y axes aligned (1 px), 1 tunnel', (await evaluate(ZERO)).ok, await evaluate(ZERO));
+    await checkRanges('default, 1 tunnel');
+    const sizes = await evaluate(SIZES);
+    check('desktop: plots 950 px wide as in the earlier app, trough 600 px, building 100 px high',
+          JSON.stringify(sizes) === JSON.stringify({ building: [950, 100], trough: [950, 600] }), sizes);
     check('mode shown', (await evaluate(`document.querySelector('tr[data-key="mode"] td.value').textContent`)) ===
           'Pointwise (b = Δx = 0.1 m)');
     // hover on the trough
@@ -297,6 +416,7 @@ try {
     await settle();
     check('typed H = 22 reaches the state', (await evaluate('window.app.state.tunnels[0].H')) === 22);
     check('zero aligned after input change', (await evaluate(ZERO)).ok, await evaluate(ZERO));
+    await checkRanges('after H = 22');
     panel = await evaluate(PANEL_CHECK);
     check('panel = assessBuilding() after input change', panel.diffs.length === 0 && panel.same, panel.diffs);
 
@@ -307,7 +427,7 @@ try {
         await sleep(200);
     }
     const yAfterWheel = await evaluate('[window.app.plots.debug.trough.yRange.start, window.app.plots.debug.trough.yRange.end]');
-    check('zero aligned after wheel zoom', (await evaluate(ZERO)).ok, { ...(await evaluate(ZERO)), y: yAfterWheel });
+    check('wheel zoom changes the view', !(await evaluate(RANGES)).ok, (await evaluate(RANGES)).got);
     await evaluate(`(() => { const p = window.app.plots.debug.trough.plot; p.toolbar.active_drag = p.toolbar.tools.find((t) => t.type === 'BoxZoomTool'); })()`);
     const bx = rect.x + rect.w * 0.4, by = rect.y + rect.h * 0.4;
     await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: bx, y: by, button: 'left', clickCount: 1 });
@@ -318,8 +438,7 @@ try {
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: bx + 140, y: by + 90, button: 'left', clickCount: 1 });
     await sleep(300);
     const yAfterBox = await evaluate('[window.app.plots.debug.trough.yRange.start, window.app.plots.debug.trough.yRange.end]');
-    check('zero aligned after box zoom', (await evaluate(ZERO)).ok && yAfterBox[0] !== yAfterWheel[0],
-          { ...(await evaluate(ZERO)), y: yAfterBox });
+    check('box zoom changes the view', yAfterBox[0] !== yAfterWheel[0], { y: yAfterBox });
 
     // pan: the shared x range moves both plots
     await evaluate(`(() => { const p = window.app.plots.debug.trough.plot; p.toolbar.active_drag = p.toolbar.tools.find((t) => t.type === 'PanTool'); })()`);
@@ -330,6 +449,22 @@ try {
     }
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x + rect.w * 0.5 - 120, y: rect.y + rect.h * 0.3 + 30, button: 'left', clickCount: 1 });
     await checkAlign('after wheel zoom, box zoom and pan');
+    // an input change keeps the view of the user
+    await evaluate(`(() => { const e = document.getElementById('in-tunnels-0-H'); e.focus(); e.value = '25'; e.dispatchEvent(new Event('input', { bubbles: true })); e.blur(); })()`);
+    await settle();
+    check('input change after a zoom: view kept', (await evaluate('window.app.plots.debug.trough.yRange.start')) !== -149);
+    // Reset (toolbar button): back to the fixed ranges
+    const resetAt = await evaluate(RESET_BUTTON);
+    check('Reset button found in the toolbar of the trough plot', resetAt !== null);
+    if (resetAt) {
+        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: resetAt.x, y: resetAt.y });
+        await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: resetAt.x, y: resetAt.y, button: 'left', clickCount: 1 });
+        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: resetAt.x, y: resetAt.y, button: 'left', clickCount: 1 });
+        await settle();
+    }
+    await checkRanges('after zoom, pan and Reset');
+    check('zero aligned after Reset', (await evaluate(ZERO)).ok, await evaluate(ZERO));
+    await checkAlign('after Reset');
 
     // ---- two tunnels through the form ---------------------------------
     await setHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
@@ -350,6 +485,7 @@ try {
     check('panel = assessBuilding(), 2 tunnels', panel.diffs.length === 0 && panel.same,
           { diffs: panel.diffs, cat: panel.cat, epsP: panel.gov.epsP });
     check('zero aligned, 2 tunnels', (await evaluate(ZERO)).ok, await evaluate(ZERO));
+    await checkRanges('2 tunnels');
     check('default 2 tunnels: curves above the tunnels', (await evaluate(OVERLAP)).ok, await evaluate(OVERLAP));
     await shot('desktop_2tunnels', 1366, 900, false);
     // hover of each tunnel curve (as in the earlier app) besides the combined one
@@ -388,18 +524,40 @@ try {
           (await evaluate(`document.getElementById('in-tunnels-0-K').value`)) === '0.4');
 
     let circles = await evaluate(CIRCLES);
-    check(`tunnel circles: round, crown at −(H − D/2) ±1 px, below y = 0, inside (desktop, ${circles.checked} circles)`,
+    check(`tunnel circles: radius D/2 in x units, centre at (x_j, −H) ±1 px (desktop, ${circles.checked} circles)`,
           circles.bad.length === 0 && circles.checked > 20, circles.bad);
+    await checkRanges('after the circle cases (H 6 … 50 m, D 2 … 20 m)');
+    for (const h of ['#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1',
+                     '#n=2&c=13.5&t1=30,10,1,0.35&t2=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1',
+                     '#n=1&t1=20,16,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1']) {
+        const round = await evaluate(`(${ROUND})(${JSON.stringify(h)})`);
+        check(`tunnel circle round on the screen (outline within 1 px of the radius, x and y): ${h.slice(1, 36)}`,
+              round.length > 0 && round.every((q) => q.ok), round);
+    }
 
-    for (const [name, h] of [['desktop_shallow_H7.5_D10', '#n=1&t1=7.5,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1'],
+    for (const [name, h] of [['desktop_H7.5_D10', '#n=1&t1=7.5,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1'],
                              ['desktop_deep_H50_D10', '#n=1&t1=50,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1']]) {
         await setHash(h);
         await sleep(200);
-        // no check of the overlap here: the division of the earlier app
-        // (curves down to −5·S_max in the upper part) is kept, a shallow
-        // tunnel can reach into the curves
+        await checkRanges(name);
+        // no check of the overlap here: with the fixed ranges of the
+        // earlier app a shallow tunnel can reach into the curves
         await shot(name, 1366, 900, false);
     }
+
+    // ---- crown cover H − D/2 >= 1.0 m -------------------------------------
+    await setHash('#n=1&t1=5.5,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
+    const cover = await evaluate(`(() => {
+        const row = (id) => document.getElementById(id).closest('.field');
+        return { H: row('in-tunnels-0-H').classList.contains('invalid'), D: row('in-tunnels-0-D').classList.contains('invalid'),
+                 msg: row('in-tunnels-0-H').querySelector('.err').textContent, box: !document.getElementById('msg').hidden,
+                 H0: window.app.result.tunnels[0].H };
+    })()`);
+    check('cover 0.5 m < 1.0 m: H and D marked, message, not calculated',
+          cover.H && cover.D && cover.box && cover.H0 !== 5.5 && cover.msg === 'Crown cover H − D/2 must be ≥ 1.0 m (now 0.5 m)', cover);
+    await setHash('#n=1&t1=6,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
+    check('cover exactly 1.0 m: valid and calculated',
+          await evaluate(`document.getElementById('msg').hidden && window.app.result.tunnels[0].H === 6`));
 
     // ---- fields b = 5 m, one tunnel --------------------------------------
     await setHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=5&fl=1&dx=0.1');
@@ -431,13 +589,13 @@ try {
     // ---- hash: reload restores the state ---------------------------------
     const hash = '#n=2&c=15&t1=28,9.5,1.2,0.4&t2=33,10,0.8,0.5&bm=e&b=-4,21&fw=3&tied=1&dx=0.05';
     await send('Page.navigate', { url: `${ORIGIN}/${hash}` });
-    for (let i = 0; i < 100 && !(await evaluate('Boolean(window.app && window.app.result)')); i++) await sleep(100);
+    await waitApp();
     await settle();
     check('state from a shared link', (await evaluate('location.hash')) === hash &&
           (await evaluate('window.app.state.tunnels[1].H')) === 33 && (await evaluate('window.app.state.floorsTied')));
     // an older link with x per tunnel: x ignored, c = |x2 - x1|, hash rewritten
     await send('Page.navigate', { url: `${ORIGIN}/#n=2&t1=-7,28,9.5,1.2,0.4&t2=8,33,10,0.8,0.5&bm=e&b=-4,21&fw=3&tied=1&dx=0.05` });
-    for (let i = 0; i < 100 && !(await evaluate('Boolean(window.app && window.app.result)')); i++) await sleep(100);
+    await waitApp();
     await settle();
     check('older link with x: c = 15 m, written in the new form', (await evaluate('location.hash')) === hash,
           await evaluate('location.hash'));
@@ -447,16 +605,22 @@ try {
     // ---- phone ---------------------------------------------------------------
     await send('Page.navigate', { url: `${ORIGIN}/` });
     await viewport(390, 844, true);
-    for (let i = 0; i < 100 && !(await evaluate('Boolean(window.app && window.app.result)')); i++) await sleep(100);
+    await waitApp();
     await settle();
     await sleep(400);
     check('phone: inputs folded', !(await evaluate(`document.getElementById('inputs').open`)));
     check('phone: no horizontal scrolling', await evaluate('document.documentElement.scrollWidth <= innerWidth'),
           await evaluate('[document.documentElement.scrollWidth, innerWidth]'));
-    check('phone: zero aligned', (await evaluate(ZERO)).ok);
+    check('phone: zero aligned', (await evaluate(ZERO)).ok, await evaluate(ZERO));
+    await checkRanges('phone');
+    const phoneSizes = await evaluate(SIZES);
+    check('phone: plots narrower than the screen, trough 600 px, building 100 px high',
+          phoneSizes.trough[0] < 390 && phoneSizes.trough[1] === 600 && phoneSizes.building[1] === 100
+          && phoneSizes.building[0] === phoneSizes.trough[0], phoneSizes);
     await checkAlign('phone');
     circles = await evaluate(CIRCLES);
     check(`tunnel circles (phone, ${circles.checked} circles)`, circles.bad.length === 0 && circles.checked > 20, circles.bad);
+    await checkRanges('phone, after the circle cases');
     await setHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
     await sleep(300);
     await shot('phone_1tunnel', 390, 844, true);
@@ -558,7 +722,7 @@ try {
     await settle();
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await send('Page.navigate', { url: `${ORIGIN}/` });
-    for (let i = 0; i < 100 && !(await evaluate('Boolean(window.app && window.app.result)')); i++) await sleep(100);
+    await waitApp();
     await settle();
     check('theme kept after reload (localStorage), not in the URL',
           (await evaluate('document.documentElement.getAttribute("data-theme")')) === 'dark' &&
