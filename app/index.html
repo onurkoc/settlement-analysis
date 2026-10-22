@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settlement Analysis – Onur Koc</title>
+<meta name="description" content="Settlement trough above one or two tunnels and damage assessment of a building (principal strain criterion after Cording et al. 2010).">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 9h4c4 0 5 9 9 9s5-9 9-9h4' fill='none' stroke='%23c2410c' stroke-width='3'/%3E%3Ccircle cx='16' cy='25' r='4' fill='none' stroke='%23c2410c' stroke-width='2'/%3E%3C/svg%3E">
+<script src="theme-init.js"></script>
+<link rel="stylesheet" href="vendor/katex-0.19.0/katex.min.css">
+<link rel="stylesheet" href="style.css">
+<script src="vendor/bokeh-3.10.1.min.js"></script>
+<script src="vendor/bokeh-api-3.10.1.min.js"></script>
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-row">
+    <div>
+      <p class="eyebrow">Onur Koc · Tunnel &amp; Geotechnical Engineering</p>
+      <h1>Settlement Analysis</h1>
+    </div>
+    <div class="top-actions">
+      <div class="seg theme-switch" id="theme-switch" role="radiogroup" aria-label="Colour scheme">
+        <label><input type="radio" name="theme" value="system"><span>System</span></label>
+        <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+        <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+      </div>
+      <a class="back" href="https://apps.onurkoc.net">← All apps</a>
+    </div>
+  </div>
+  <nav class="wrap tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-btn-calc" aria-controls="tab-calc" aria-selected="true">Calculation</button>
+    <button type="button" role="tab" id="tab-btn-info" aria-controls="tab-info" aria-selected="false">Information</button>
+  </nav>
+</header>
+
+<main class="wrap">
+  <section id="tab-calc" class="calc" role="tabpanel" aria-labelledby="tab-btn-calc">
+    <details id="inputs" class="inputs card" open>
+      <summary>Inputs</summary>
+      <form id="input-form" autocomplete="off" onsubmit="return false"></form>
+    </details>
+
+    <div class="main">
+      <div id="msg" class="msg" role="alert" hidden>Invalid input – the results are not updated.</div>
+      <div class="plots card">
+        <div id="plot-building" class="plot"></div>
+        <div id="plot-trough" class="plot"></div>
+        <div id="plot-damage" class="plot"></div>
+        <div class="plot-bar">
+          <label class="check"><input type="checkbox" id="legacy"> Show legacy curves (Boscardin &amp; Cording 1989)</label>
+        </div>
+      </div>
+      <section class="results card" aria-labelledby="results-title">
+        <div class="results-head">
+          <h2 id="results-title">Results</h2>
+          <div class="actions">
+            <button type="button" id="copy-link">Copy link</button>
+            <button type="button" id="export-csv">Export CSV</button>
+          </div>
+        </div>
+        <div id="results" class="results-grid"></div>
+      </section>
+    </div>
+  </section>
+
+  <section id="tab-info" class="info card" role="tabpanel" aria-labelledby="tab-btn-info" hidden>
+    <h2>Information</h2>
+    <p class="note">Estimate for preliminary studies; it does not replace a project-specific assessment.</p>
+
+    <h3>Settlement trough</h3>
+    <p>Gaussian trough above each tunnel <i>j</i> (Peck 1969; O'Reilly &amp; New 1982), the troughs of two tunnels superposed. Greenfield, at the ground surface. Settlement <i>S</i> positive downwards. <i>x</i> is measured from the tunnel axis (1 tunnel) or from the midpoint between the axes (2 tunnels), positive to the right; the axes lie at <span class="tex-inline" data-tex="x_1 = 0"></span>, or at <span class="tex-inline" data-tex="x_{1,2} = \mp c/2"></span> with the spacing <span class="tex-inline" data-tex="c"></span>. Only the building moves.</p>
+    <div class="formulas">
+      <div class="tex" data-tex="i_j = K_j\,H_j"></div>
+      <div class="tex" data-tex="S_{\max,j} = \dfrac{V_{L,j}\,\pi D_j^2/4}{\sqrt{2\pi}\;i_j}"></div>
+      <div class="tex" data-tex="S_j(x) = S_{\max,j}\,\exp\!\left(-\dfrac{(x-x_j)^2}{2\,i_j^2}\right)"></div>
+      <div class="tex" data-tex="S(x) = \sum_j S_j(x)"></div>
+      <div class="tex" data-tex="S'(x) = -\sum_j S_j(x)\,\dfrac{x-x_j}{i_j^2}"></div>
+      <div class="tex" data-tex="S_h(x) = -\sum_j S_j(x)\,\dfrac{x-x_j}{H_j}"></div>
+      <div class="tex" data-tex="\varepsilon_h(x) = \dfrac{dS_h}{dx} = \sum_j \dfrac{S_j(x)}{H_j}\left(\dfrac{(x-x_j)^2}{i_j^2}-1\right)"></div>
+    </div>
+    <p class="symbols"><span class="tex-inline" data-tex="x_j, H_j, D_j"></span>: axis position (0 or ±c/2), axis depth, equivalent diameter; <span class="tex-inline" data-tex="V_L"></span>: volume loss; <span class="tex-inline" data-tex="K"></span>: trough width factor; <span class="tex-inline" data-tex="i"></span>: distance of the inflection point from the axis; <span class="tex-inline" data-tex="S_h"></span>: horizontal displacement towards the axis; <span class="tex-inline" data-tex="\varepsilon_h"></span>: horizontal strain, extension positive.</p>
+
+    <h3>Trough width factor K</h3>
+    <table class="data">
+      <thead><tr><th scope="col">Soil or rock</th><th scope="col">K [-]</th></tr></thead>
+      <tbody>
+        <tr><td>Cohesionless soil</td><td>0.3</td></tr>
+        <tr><td>Normally consolidated clay</td><td>0.5</td></tr>
+        <tr><td>Overconsolidated clay</td><td>0.6–0.7</td></tr>
+        <tr><td>Clay slate</td><td>0.6–0.8</td></tr>
+        <tr><td>Quartzite</td><td>0.8–0.9</td></tr>
+      </tbody>
+    </table>
+    <p class="small">Typical values, as listed in the GEO5 online help (Fine Ltd., «Shape of subsidence trough»).</p>
+
+    <h3>Building and damage</h3>
+    <p>Building from <span class="tex-inline" data-tex="x_L"></span> to <span class="tex-inline" data-tex="x_R"></span>, width <span class="tex-inline" data-tex="L"></span>, divided into <span class="tex-inline" data-tex="n"></span> fields of equal width (structural bays). «Pointwise» means <span class="tex-inline" data-tex="b = \Delta x"></span>, the grid step (limit <span class="tex-inline" data-tex="b \to 0"></span>).</p>
+    <div class="formulas">
+      <div class="tex" data-tex="\Omega = \dfrac{S(x_R)-S(x_L)}{L}"></div>
+      <div class="tex" data-tex="n = \left\lceil L/b \right\rceil, \quad b_\text{eff} = L/n, \quad a_k = x_L + k\,b_\text{eff}"></div>
+      <div class="tex" data-tex="\beta_k = \left|\dfrac{S(a_{k+1})-S(a_k)}{b_\text{eff}} - \Omega\right|"></div>
+      <div class="tex" data-tex="\varepsilon_{L,k} = \dfrac{S_h(a_{k+1})-S_h(a_k)}{b_\text{eff}}"></div>
+      <div class="tex" data-tex="\varepsilon_{L,\text{eff},k} = f_L\,\max(0,\,\varepsilon_{L,k})"></div>
+      <div class="tex" data-tex="\varepsilon_{p,k} = \dfrac{\varepsilon_{L,\text{eff},k}}{2} + \sqrt{\left(\dfrac{\varepsilon_{L,\text{eff},k}}{2}\right)^2 + \left(\dfrac{\beta_k}{2}\right)^2}"></div>
+    </div>
+    <p class="symbols"><span class="tex-inline" data-tex="\Omega"></span>: tilt; <span class="tex-inline" data-tex="\beta"></span>: angular distortion; <span class="tex-inline" data-tex="\varepsilon_L"></span>: lateral strain of a field; <span class="tex-inline" data-tex="f_L"></span>: factor on the lateral strain; <span class="tex-inline" data-tex="\varepsilon_p"></span>: maximum principal extension strain, the maximum over <span class="tex-inline" data-tex="\theta"></span> of <span class="tex-inline" data-tex="\beta\sin\theta\cos\theta + \varepsilon_L\cos^2\theta"></span> (Cording et al. 2010). The field with the largest <span class="tex-inline" data-tex="\varepsilon_p"></span> governs.</p>
+
+    <h3>Damage categories</h3>
+    <div class="table-wrap">
+      <table class="data" id="damage-table">
+        <thead><tr><th scope="col">Category</th><th scope="col">Degree of severity</th><th scope="col">Limiting tensile strain ε<sub>p</sub></th><th scope="col">Typical crack width</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="small">Limiting tensile strains: Franzius (2003), Tab. 2.3, after Boscardin &amp; Cording (1989) and Burland (1995); the limit curves drawn in Cording et al. (2010), Fig. 2 deviate slightly at the upper two boundaries. Crack widths after Franzius (2003), Tab. 2.2, and Cording et al. (2010), Fig. 2, as additional information only: the category is defined by the ease of repair. A strain equal to a limit belongs to the higher category.</p>
+
+    <h3>Screening, stage 1</h3>
+    <p>Three-stage assessment after Mair et al. (1996): preliminary assessment (screening), second stage assessment, detailed evaluation. Limits of the first stage after Rankin (1988), both as given by Franzius (2003), §2.4.2: maximum slope <span class="tex-inline" data-tex="\theta &lt; 1/500"></span> and maximum settlement <span class="tex-inline" data-tex="S_{v,\max} &lt; 10\ \text{mm}"></span> at the building ⇒ negligible risk of damage; otherwise a second stage assessment is required.</p>
+
+    <h3>Assumptions</h3>
+    <ul>
+      <li>Greenfield movements, no interaction between ground and building; the building follows the trough.</li>
+      <li>Two tunnels: the troughs are superposed independently; interaction between closely spaced tunnels (narrow pillar) is not considered.</li>
+      <li>Tilt = slope of the chord over the whole building (beam assumption, Cording et al. 2010, Fig. 5b). If the distortion concentrates in one bay (Fig. 5a), the tilt is smaller and β is underestimated; Cording et al. report β between 2Δ/L and 4Δ/L.</li>
+      <li>Only extension counts: compressive lateral strain is set to zero.</li>
+      <li>f<sub>L</sub> reduces the lateral strain; f<sub>L</sub> = 0 for floors tied to the walls or a grade beam (Cording et al. 2010, Fig. 2).</li>
+      <li>Screening (stage 1 of the three-stage assessment after Mair et al. 1996) with the limits after Rankin (1988), see above.</li>
+      <li>Not included: subsurface trough at foundation level, longitudinal trough, deflection ratio method.</li>
+    </ul>
+
+    <h3>Sources</h3>
+    <ul class="sources">
+      <li>Boscardin, M.D., Cording, E.J. (1989): Building response to excavation-induced settlement. Journal of Geotechnical Engineering, ASCE, 115(1), 1–21.</li>
+      <li>Burland, J.B. (1995): Assessment of risk of damage to buildings due to tunnelling and excavation. Invited special lecture. 1st Int. Conf. on Earthquake Geotechnical Engineering, IS-Tokyo '95.</li>
+      <li>Cording, E.J., Long, J.L., Son, M., Laefer, D., Ghahreman, B. (2010): Assessment of excavation-induced building damage. In: Arduino, P., Hashash, Y., Finno, R. (eds.), Earth Retention Conference 3, Proceedings of the 2010 Earth Retention Conference, Bellevue, Washington. ASCE. doi:10.1061/41128(384)7.</li>
+      <li>Franzius, J.N. (2003): Behaviour of buildings due to tunnel induced subsidence. PhD thesis, University of London (Imperial College of Science, Technology and Medicine).</li>
+      <li>Mair, R.J., Taylor, R.N., Burland, J.B. (1996): Prediction of ground movements and assessment of risk of building damage due to bored tunnelling. Proc. of the International Symposium on Geotechnical Aspects of Underground Construction in Soft Ground, 713–718. Balkema, Rotterdam.</li>
+      <li>O'Reilly, M.P., New, B.M. (1982): Settlements above tunnels in the United Kingdom – their magnitude and prediction. Tunnelling '82, The Institution of Mining and Metallurgy, London.</li>
+      <li>Peck, R.B. (1969): Deep excavations and tunneling in soft ground. Proc. of the 7th Int. Conference on Soil Mechanics and Foundation Engineering, State of the art volume, 225–290. Sociedad Mexicana de Mecánica de Suelos.</li>
+      <li>Rankin, W.J. (1988): Ground movements resulting from urban tunnelling: predictions and effects. Engineering geology of underground movements, 79–92. The Geological Society, London.</li>
+    </ul>
+  </section>
+</main>
+
+<div id="theme-light" data-theme="light" hidden></div>
+<footer>
+  <div class="wrap">© Onur Koc · <a href="https://apps.onurkoc.net">apps.onurkoc.net</a></div>
+</footer>
+</body>
+</html>
