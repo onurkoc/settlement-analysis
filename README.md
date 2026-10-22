@@ -9,8 +9,8 @@ Everything is calculated in the browser; there is no server.
 
 Author: Onur Koc – more apps: <https://apps.onurkoc.net/>
 
-> Work in progress: the calculation core and its tests are done
-> (phase 1), the user interface follows.
+> Work in progress: calculation core and user interface are done;
+> the tab «Information» and the deployment follow.
 
 ## Scope
 
@@ -35,8 +35,11 @@ comments of `app/core/`.
   extension positive. Greenfield, at the ground surface.
 - **Building** (`app/core/building.js`): follows the greenfield trough.
   Tilt Ω = (S(xR) − S(xL))/L, chord over the whole building (beam
-  assumption, Cording et al. 2010, Fig. 5b; the real tilt can be
-  smaller, Fig. 5a). Building divided into fields (structural bays) of
+  assumption, Cording et al. 2010, Fig. 5b). Assumption: if the
+  distortion concentrates in one unit and the rest of the building
+  only tilts (Fig. 5a), the real tilt is smaller and β is
+  underestimated; Cording et al. report β between 2Δ/L (Fig. 5b) and
+  4Δ/L (Fig. 5a). Building divided into fields (structural bays) of
   width b; per field angular distortion β = |field slope − Ω| and
   lateral strain ε_L = extension/b (Cording et al. 2010, Fig. 3;
   definitions Franzius 2003, §2.4.1). Only extension counts; factor
@@ -109,6 +112,14 @@ comments of `app/core/`.
     `legacy_curves.json`; it needs the legacy files in `legacy/`, which
     are kept locally only.
 - Local server: `python serve.py` (or `start.cmd` on Windows).
+- Browser check (Microsoft Edge, headless): `node tests/browser/check.mjs`
+  starts the server, checks console, requests, zero alignment of the
+  y axes, results against the core, URL hash and phone layout, and
+  writes the screenshots in `docs/screenshots/web/`.
+- App structure: `app/app.js` (state and wiring), `app/state.js`
+  (defaults, validation, URL hash), `app/model.js` (results),
+  `app/csv.js` (export), `app/ui/` (form, result panel), `app/plots/`
+  (one module per plot, BokehJS 3.10.1).
 - Third-party libraries in `app/vendor/` (see `app/vendor/README.md`).
 
 ## Legacy

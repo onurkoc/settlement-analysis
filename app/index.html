@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settlement Analysis – Onur Koc</title>
+<meta name="description" content="Settlement trough above one or two tunnels and damage assessment of a building (principal strain criterion after Cording et al. 2010).">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 9h4c4 0 5 9 9 9s5-9 9-9h4' fill='none' stroke='%23c2410c' stroke-width='3'/%3E%3Ccircle cx='16' cy='25' r='4' fill='none' stroke='%23c2410c' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script src="vendor/bokeh-3.10.1.min.js"></script>
+<script src="vendor/bokeh-api-3.10.1.min.js"></script>
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-row">
+    <div>
+      <p class="eyebrow">Onur Koc · Tunnel &amp; Geotechnical Engineering</p>
+      <h1>Settlement Analysis</h1>
+    </div>
+    <a class="back" href="https://apps.onurkoc.net">← All apps</a>
+  </div>
+  <nav class="wrap tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-btn-calc" aria-controls="tab-calc" aria-selected="true">Calculation</button>
+    <button type="button" role="tab" id="tab-btn-info" aria-controls="tab-info" aria-selected="false">Information</button>
+  </nav>
+</header>
+
+<main class="wrap">
+  <section id="tab-calc" class="calc" role="tabpanel" aria-labelledby="tab-btn-calc">
+    <details id="inputs" class="inputs card" open>
+      <summary>Inputs</summary>
+      <form id="input-form" autocomplete="off" onsubmit="return false"></form>
+    </details>
+
+    <div class="main">
+      <div id="msg" class="msg" role="alert" hidden>Invalid input – the results are not updated.</div>
+      <div class="plots card">
+        <div id="plot-building" class="plot"></div>
+        <div id="plot-trough" class="plot"></div>
+        <div id="plot-damage" class="plot"></div>
+        <div class="plot-bar">
+          <label class="check"><input type="checkbox" id="legacy"> Show legacy curves (Boscardin &amp; Cording 1989)</label>
+        </div>
+      </div>
+      <section class="results card" aria-labelledby="results-title">
+        <div class="results-head">
+          <h2 id="results-title">Results</h2>
+          <div class="actions">
+            <button type="button" id="copy-link">Copy link</button>
+            <button type="button" id="export-csv">Export CSV</button>
+          </div>
+        </div>
+        <div id="results" class="results-grid"></div>
+      </section>
+    </div>
+  </section>
+
+  <section id="tab-info" class="info card" role="tabpanel" aria-labelledby="tab-btn-info" hidden>
+    <h2>Information</h2>
+    <p>Method, formulas, the table of trough width factors and the sources follow here.</p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">© Onur Koc · <a href="https://apps.onurkoc.net">apps.onurkoc.net</a></div>
+</footer>
+</body>
+</html>
