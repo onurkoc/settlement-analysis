@@ -7,9 +7,14 @@ axis (depth [m]); y = 0 of both axes at the same height.
 import { applyFrame, setGlyph, TOOLS } from './theme.js';
 import { troughRanges } from './ranges.js';
 import { formatSlopeN, slopeToN } from '../core/units.js';
+import { tunnelAt } from '../core/trough.js';
 
 /** @typedef {import('./theme.js').Theme} Theme */
 /** @typedef {import('../model.js').Result} Result */
+
+/** Height of the plot [px]: as in the earlier app, lower on a phone. */
+const HEIGHT = 600;
+const HEIGHT_NARROW = 440;
 
 /**
  * @param {any} B  window.Bokeh
@@ -21,7 +26,7 @@ export function createTroughPlot(B, xRange, th) {
     const depthRange = new B.Range1d({ start: -40, end: 5 });
     const p = B.Plotting.figure({
         title: 'Settlement trough',
-        height: 420,
+        height: HEIGHT,
         sizing_mode: 'stretch_width',
         x_range: xRange,
         y_range: yRange,
@@ -34,7 +39,9 @@ export function createTroughPlot(B, xRange, th) {
     p.toolbar.logo = null;
     p.add_layout(new B.LinearAxis({ y_range_name: 'depth', axis_label: 'Depth [m]' }), 'right');
 
-    const curves = new B.ColumnDataSource({ data: { x: [], S: [], Sabs: [], S1: [], S2: [], Sh: [], eh: [], n: [] } });
+    const curves = new B.ColumnDataSource({
+        data: { x: [], S: [], Sabs: [], S1: [], S2: [], Sh: [], eh: [], n: [], S1abs: [], S2abs: [], n1: [], n2: [] },
+    });
     const tunnels = new B.ColumnDataSource({ data: { x: [], y: [], r: [] } });
     const inflections = new B.ColumnDataSource({ data: { x: [], y: [] } });
 
@@ -52,10 +59,10 @@ export function createTroughPlot(B, xRange, th) {
     const rT2 = p.line({ field: 'x' }, { field: 'S2' }, { source: curves, line_width: 1.5, line_dash: [4, 3] });
     const rS = p.line({ field: 'x' }, { field: 'S' }, { source: curves, line_width: 2.5 });
     const rSh = p.line({ field: 'x' }, { field: 'Sh' }, { source: curves, line_width: 2 });
-    // tunnel as a circle with the radius D/2 measured on the x axis, as in
-    // the earlier app: round on the screen, crown and invert only
-    // approximately at their depth (the depth range keeps it inside)
-    const rC = p.circle({ x: { field: 'x' }, y: { field: 'y' }, radius: { field: 'r' }, radius_dimension: 'x',
+    // tunnel as a circle with the radius D/2 measured on the depth axis:
+    // round on the screen, crown and invert exactly at −(H ∓ D/2) on the
+    // depth axis, only the width on the x axis is approximate
+    const rC = p.circle({ x: { field: 'x' }, y: { field: 'y' }, radius: { field: 'r' }, radius_dimension: 'y',
                           source: tunnels, y_range_name: 'depth', fill_alpha: 0.35, line_width: 1.5 });
     const rI = p.scatter({ x: { field: 'x' }, y: { field: 'y' }, source: inflections, size: 8, marker: 'circle',
                            line_width: 1.5 });
@@ -83,6 +90,17 @@ export function createTroughPlot(B, xRange, th) {
             ['ε_h', '@eh{0.000} ×10⁻³'],
         ],
     }));
+    // two tunnels: settlement and slope of each tunnel, as in the earlier app.
+    // Not switched off for one tunnel (Bokeh groups the hover tools of a
+    // toolbar, switching one off would switch off all): the curves of the
+    // single tunnels are then hidden and have no data, so nothing is shown.
+    const hoverT = [[rT1, 'S1abs', 'n1', 'Tunnel 1'], [rT2, 'S2abs', 'n2', 'Tunnel 2']].map(([r, s, n, name]) =>
+        new B.HoverTool({
+            renderers: [r],
+            mode: 'vline',
+            tooltips: [[`${name}: S`, `@${s}{0.00} mm`], ['Slope', `@${n}`]],
+        }));
+    p.add_tools(...hoverT);
 
     let theme = th;
     let level = 0;
@@ -115,6 +133,13 @@ export function createTroughPlot(B, xRange, th) {
     function update(r) {
         const t = r.trough;
         const two = r.tunnels.length === 2;
+        /** settlement [mm] and slope 1/n of tunnel j alone @param {number} j */
+        const single = (j) => {
+            if (j >= r.tunnels.length) return { s: t.x.map(() => NaN), n: t.x.map(() => '') };
+            const q = t.x.map((x) => tunnelAt(r.tunnels[j], x));
+            return { s: q.map((v) => v.S * 1000), n: q.map((v) => formatSlopeN(slopeToN(v.dS))) };
+        };
+        const [one1, one2] = two ? [single(0), single(1)] : [single(2), single(2)];
         curves.data = {
             x: t.x,
             S: t.S.map((v) => -v * 1000),
@@ -124,6 +149,7 @@ export function createTroughPlot(B, xRange, th) {
             Sh: t.Sh.map((v) => v * 1000),
             eh: t.eh.map((v) => v * 1000),
             n: t.dS.map((d) => formatSlopeN(slopeToN(d))),
+            S1abs: one1.s, n1: one1.n, S2abs: one2.s, n2: one2.n,
         };
         tunnels.data = {
             x: r.tunnels.map((u) => u.x),
@@ -153,46 +179,20 @@ export function createTroughPlot(B, xRange, th) {
         level = r.building.category.level;
         governingColour();
 
-        last = r;
-        fitRanges(true);
-    }
-
-    /** @type {Result | null} */
-    let last = null;
-    /** @type {number[]} y and depth range as set by fitRanges() */
-    let fitted = [];
-
-    /**
-     * y ranges from the data and the size of the plot frame (the circles
-     * depend on it). force = false (after a change of the frame size):
-     * only if the user has not zoomed or panned since the last fit.
-     * @param {boolean} force
-     */
-    function fitRanges(force) {
-        if (!last) return;
-        const now = [yRange.start, yRange.end, depthRange.start, depthRange.end];
-        if (!force && now.some((v, k) => v !== fitted[k])) return;
-        const width = p.inner_width > 0 ? p.inner_width : 800;
-        const height = p.inner_height > 0 ? p.inner_height : 330;
-        const { y, depth } = troughRanges(last, { width, height, xSpan: p.x_range.end - p.x_range.start });
-        const next = [y[0], y[1], depth[0], depth[1]];
-        // a change of less than 0.1 % does not change the picture; this
-        // also ends the loop axis width -> frame width -> ranges
-        const span = (y[1] - y[0]) || 1;
-        if (!force && next.every((v, k) => Math.abs(v - fitted[k]) <= 1e-3 * (k < 2 ? span : depth[1] - depth[0]))) return;
+        const { y, depth } = troughRanges(r);
         yRange.setv({ start: y[0], end: y[1], reset_start: y[0], reset_end: y[1] });
         depthRange.setv({ start: depth[0], end: depth[1], reset_start: depth[0], reset_end: depth[1] });
-        fitted = [yRange.start, yRange.end, depthRange.start, depthRange.end];
     }
 
     /**
-     * Legend as a list on a narrow screen (Bokeh does not wrap it), in
-     * one row otherwise (five items at most).
+     * Narrow screen: legend as a list (Bokeh does not wrap it) and a
+     * lower plot; otherwise one row and the height of the earlier app.
      * @param {boolean} narrow
      */
     function setNarrow(narrow) {
         legend.ncols = narrow ? 1 : 5;
+        p.height = narrow ? HEIGHT_NARROW : HEIGHT;
     }
 
-    return { plot: p, update, setTheme, setNarrow, refit: () => fitRanges(false), yRange, depthRange, circles: rC };
+    return { plot: p, update, setTheme, setNarrow, yRange, depthRange, circles: rC, curves: [rS, rSh, rT1, rT2] };
 }

@@ -29,70 +29,32 @@ export function zeroFraction(lo, hi) {
     return -lo / (hi - lo);
 }
 
-/**
- * @typedef {Object} Frame
- * @property {number} width  width of the plot frame [px]
- * @property {number} height  height of the plot frame [px]
- * @property {number} xSpan  width of the x range [m]
- */
-
-/** Free space at the top and bottom of the trough plot, fraction of the height. */
-const MARGIN = 0.04;
+/** Depth below the deepest invert on the right axis [m], as in the earlier app. */
+export const DEPTH_MARGIN = 5;
 
 /**
- * y ranges of the trough plot: left axis settlement and horizontal
- * displacement [mm] (settlement drawn downwards, negative), right axis
- * depth [m]; y = 0 at the same height on both axes.
- *
- * The tunnels are circles with the radius D/2 measured on the x axis
- * (round on the screen, as in the earlier app), so their size on the
- * depth axis depends on the plot frame: in fractions of the frame height
- * the radius is ρ = (D/2)·(width/xSpan)/height. With F the fraction of
- * the height above y = 0 and d the depth span, a circle at depth H lies
- * inside the frame if
- *     F + H/d + ρ ≤ 1 − margin   (invert)   and   F + H/d − ρ ≥ margin   (crown).
- * F starts from the left axis and is raised only if a shallow, large
- * circle needs room above the ground; d is the smallest span that holds
- * all circles.
+ * y ranges of the trough plot, divided as in the earlier app: the
+ * settlement and Sh curves in the upper part, the tunnels below.
+ * - Left axis (S, Sh [mm], settlement drawn downwards): from −5·S_max
+ *   (S_max of the combined trough) up to a little above max(Sh), at
+ *   least 5 % of |−5·S_max| above 0.
+ * - Right axis (depth [m]): from −(max_j(H_j + D_j/2) + 5 m) up to the
+ *   value that puts y = 0 at the same height as on the left axis.
+ * The tunnel circles have the radius D/2 on the depth axis, so crown
+ * and invert are exact on it.
  * @param {Result} r
- * @param {Frame} [frame]  default: a frame of 800 × 330 px
  * @returns {{y: [number, number], depth: [number, number]}}
  */
-export function troughRanges(r, frame = { width: 800, height: 330, xSpan: 2 * r.R }) {
+export function troughRanges(r) {
     const smax = Math.max(r.trough.Smax * 1000, 1e-6);
     const shMin = Math.min(0, ...r.trough.Sh) * 1000;
     const shMax = Math.max(0, ...r.trough.Sh) * 1000;
-    const lo1 = 1.15 * Math.min(-smax, shMin);
-    const hi1 = Math.max(1.15 * shMax, 0.12 * -lo1);
-
-    const kx = frame.width / frame.xSpan;   // px per m on the x axis
-    const circles = r.tunnels.map((t) => ({ H: t.H, rho: (t.D / 2) * kx / frame.height }));
-    /** @param {number} F  smallest and largest depth span for this F */
-    const spans = (F) => {
-        let dMin = 0;
-        let dMax = Infinity;
-        for (const { H, rho } of circles) {
-            const room = 1 - MARGIN - rho - F;
-            if (room <= 0) return null;
-            dMin = Math.max(dMin, H / room);
-            const top = rho + MARGIN - F;
-            if (top > 0) dMax = Math.min(dMax, H / top);
-        }
-        return dMin <= dMax ? dMin : null;
-    };
-    let F = hi1 / (hi1 - lo1);   // fraction of the height above y = 0
-    let d = spans(F);
-    while (d === null && F < 0.9) {
-        F += 0.01;
-        d = spans(F);
-    }
-    if (d === null) {
-        // circles larger than the frame: show the deepest axis at least
-        d = 1.2 * Math.max(...r.tunnels.map((t) => t.H)) / (1 - F);
-    }
-    // left axis: keep the lower end, raise the upper end to the same F
-    const hiLeft = Math.max(hi1, F * -lo1 / (1 - F));
-    return { y: [lo1, hiLeft], depth: [-(1 - F) * d, F * d] };
+    const lo1 = Math.min(-5 * smax, 1.15 * shMin);
+    // a large Sh raises the upper end; the zero stays aligned below
+    const hi1 = Math.max(1.15 * shMax, 0.05 * -lo1);
+    const lo2 = -(Math.max(...r.tunnels.map((t) => t.H + t.D / 2)) + DEPTH_MARGIN);
+    const F = hi1 / (hi1 - lo1);   // fraction of the height above y = 0
+    return { y: [lo1, hi1], depth: [lo2, F * -lo2 / (1 - F)] };
 }
 
 /**
@@ -111,24 +73,12 @@ export function damageRanges(beta, epsLEff) {
     return { x: [-0.02 * xe, xe], y: [-0.04 * ye, ye] };
 }
 
-/** Largest radius of a tunnel circle, fraction of the frame height. */
-export const MAX_CIRCLE = 0.4;
-
 /**
- * x range of the trough and building plots [m]: ±R of the result,
- * widened if a tunnel circle (radius D/2 on the x axis) would be higher
- * than 2·MAX_CIRCLE of the frame (large D, narrow range, wide frame).
+ * x range of the trough and building plots [m]: ±R of the result (at
+ * least ±50 m, see plotHalfWidth() in app/state.js).
  * @param {Result} r
- * @param {{width: number, height: number}} [frame]  plot frame [px]
  * @returns {[number, number]}
  */
-export function xRange(r, frame) {
-    let R = r.R;
-    if (frame && frame.width > 0 && frame.height > 0) {
-        for (const t of r.tunnels) {
-            // rho = (D/2)·(width/2R)/height <= MAX_CIRCLE
-            R = Math.max(R, (t.D / 2) * frame.width / (2 * MAX_CIRCLE * frame.height));
-        }
-    }
-    return [-R, R];
+export function xRange(r) {
+    return [-r.R, r.R];
 }

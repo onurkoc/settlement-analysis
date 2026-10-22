@@ -56,6 +56,12 @@ export const DEFAULT_TUNNEL = Object.freeze({ H: 30, D: 10, VL: 1.0, K: 0.35 });
 /** Spacing of the axes when switching to two tunnels [m], as in the earlier app. */
 export const DEFAULT_SPACING = 13.5;
 
+/** Smallest cover above the crown of a tunnel, H − D/2 [m]. */
+export const MIN_COVER = 1.0;
+
+/** Smallest half width of the plotted x range [m], as in the earlier app. */
+export const MIN_HALF_WIDTH = 50;
+
 /** Limits of the number of points, against a frozen browser. */
 export const MAX_GRID_POINTS = 200001;
 export const MAX_FIELDS = 100000;
@@ -97,15 +103,35 @@ const positive = (v) => (Number.isFinite(v) && v > 0 ? null : 'Must be > 0');
 const nonNegative = (v) => (Number.isFinite(v) && v >= 0 ? null : 'Must be ≥ 0');
 
 /**
- * Input fields of one tunnel (j = 0 or 1).
+ * Cover above the crown of tunnel j: H − D/2 >= 1.0 m, for any diameter.
+ * Checked on the fields H and D, both are marked.
+ * @param {State} s
+ * @param {number} j
+ * @returns {string | null}
+ */
+export function coverError(s, j) {
+    const { H, D } = s.tunnels[j];
+    if (!(Number.isFinite(H) && Number.isFinite(D))) return null;
+    const cover = H - D / 2;
+    // 1e-9: H = 6, D = 10 gives exactly 1.0 and is valid
+    return cover >= MIN_COVER - 1e-9
+        ? null
+        : `Crown cover H − D/2 must be ≥ ${MIN_COVER.toFixed(1)} m (now ${Number(cover.toFixed(3))} m)`;
+}
+
+/**
+ * Input fields of one tunnel (j = 0 or 1). Slider of H as in the earlier
+ * app (7.5 ... 50 m); the number field may go beyond.
  * @param {number} j
  * @returns {FieldSpec[]}
  */
 export function tunnelFields(j) {
     const p = `tunnels.${j}.`;
     return [
-        { path: p + 'H', label: 'Axis depth H', unit: 'm', min: 5, max: 60, step: 0.5, check: positive },
-        { path: p + 'D', label: 'Equivalent diameter D', unit: 'm', min: 2, max: 20, step: 0.1, check: positive },
+        { path: p + 'H', label: 'Axis depth H', unit: 'm', min: 7.5, max: 50, step: 0.5,
+          check: (v, s) => positive(v) ?? coverError(s, j) },
+        { path: p + 'D', label: 'Equivalent diameter D', unit: 'm', min: 2, max: 20, step: 0.1,
+          check: (v, s) => positive(v) ?? coverError(s, j) },
         { path: p + 'VL', label: 'Volume loss VL', unit: '%', min: 0.1, max: 3, step: 0.05, check: nonNegative },
         { path: p + 'K', label: 'Trough width factor K', unit: '-', min: 0.2, max: 0.9, step: 0.01, check: positive },
     ];
@@ -212,10 +238,10 @@ export function axisPositions(s) {
 }
 
 /**
- * Half width of the plotted x range [m]: ±(max|x_j| + 3·max i_j) as in
- * app/core/trough.js, widened so that the tunnel circles (0.6·D) and the
- * building lie inside, the building with a margin of 5 % of its width
- * (at least 1 m).
+ * Half width of the plotted x range [m]: at least ±50 m as in the earlier
+ * app; wider only if the trough ±(max|x_j| + 3·max i_j), the tunnels
+ * (±(|x_j| + 0.6·D)) or the building (with a margin of 5 % of its width,
+ * at least 1 m) go beyond.
  * @param {State} s
  */
 export function plotHalfWidth(s) {
@@ -224,7 +250,7 @@ export function plotHalfWidth(s) {
         + Math.max(...tunnels.map((t) => Math.max(3 * t.K * t.H, 0.6 * t.D)));
     const { xL, xR } = edgesOf(s);
     const margin = Math.max(1, 0.05 * (xR - xL));
-    return Math.max(R, Math.abs(xL) + margin, Math.abs(xR) + margin);
+    return Math.max(MIN_HALF_WIDTH, R, Math.abs(xL) + margin, Math.abs(xR) + margin);
 }
 
 /**

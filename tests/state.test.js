@@ -137,13 +137,42 @@ test('parseNumber: "." or ",", exponent; everything else NaN', () => {
     }
 });
 
-test('plot range: trough range, widened to the building', () => {
+test('plot range: at least ±50 m as in the earlier app, wider for a wide trough or the building', () => {
     const s = defaultState();
-    assert.ok(Math.abs(plotHalfWidth(s) - 3 * 10.5) < 1e-12);
-    const two = switchTunnels(s, 2);
-    assert.ok(Math.abs(plotHalfWidth(two) - (6.75 + 3 * 10.5)) < 1e-12);
+    assert.equal(plotHalfWidth(s), 50);
+    assert.equal(plotHalfWidth(switchTunnels(s, 2)), 50);
+    const deep = cloneState(s);
+    deep.tunnels[0].H = 60;
+    deep.tunnels[0].K = 0.9;
+    assert.ok(Math.abs(plotHalfWidth(deep) - 3 * 0.9 * 60) < 1e-9);    // trough ±162 m
     s.center = 60;
     assert.equal(plotHalfWidth(s), 70 + 1);
+});
+
+test('validation: crown cover H − D/2 >= 1.0 m for each tunnel, marks H and D', () => {
+    const s = defaultState();
+    s.tunnels[0] = { H: 6, D: 10, VL: 1, K: 0.35 };     // exactly 1.0 m: valid
+    assert.deepEqual(validate(s), {});
+    s.tunnels[0].H = 5.99;
+    const e = validate(s);
+    assert.match(e['tunnels.0.H'], /^Crown cover H − D\/2 must be ≥ 1\.0 m \(now 0\.99 m\)$/);
+    assert.equal(e['tunnels.0.D'], e['tunnels.0.H']);
+    // independent of the diameter
+    s.tunnels[0] = { H: 1.9, D: 2, VL: 1, K: 0.35 };
+    assert.match(validate(s)['tunnels.0.D'], /now 0\.9 m/);
+    s.tunnels[0] = { H: 2, D: 2, VL: 1, K: 0.35 };
+    assert.deepEqual(validate(s), {});
+    // two tunnels: each one; the spacing check stays
+    const t = switchTunnels(defaultState(), 2);
+    t.tunnels[1] = { H: 8, D: 16, VL: 1, K: 0.35 };       // cover 0 m
+    let v = validate(t);
+    assert.ok(v['tunnels.1.H'] && v['tunnels.1.D'] && !v['tunnels.0.H']);
+    t.tunnels[1] = { H: 9, D: 16, VL: 1, K: 0.35 };       // cover 1.0 m
+    t.c = 12;                                             // < (10 + 16)/2 = 13
+    v = validate(t);
+    assert.ok(!v['tunnels.1.H'] && v.c);
+    // the H slider as in the earlier app
+    assert.deepEqual([activeFields(s)[0].min, activeFields(s)[0].max], [7.5, 50]);
 });
 
 test('hash: round trip of all values, no tunnel x', () => {

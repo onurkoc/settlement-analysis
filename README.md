@@ -121,8 +121,13 @@ the category.
 - Two tunnels: the troughs are superposed independently; interaction
   between closely spaced tunnels (narrow pillar) is not considered. The
   spacing must be at least (D1 + D2)/2.
+- Crown cover H − D/2 of each tunnel at least 1.0 m (input check).
 - The tunnel is drawn as a circle in screen units; crown and invert are
-  approximate on the depth axis.
+  exact on the depth axis, the width on the x axis is approximate.
+- Trough plot divided as in the earlier app: curves down to −5·S_max in
+  the upper part, tunnels below (depth axis down to the deepest invert
+  + 5 m), x range at least ±50 m. A shallow tunnel can reach into the
+  curves.
 - Tilt = slope of the chord over the whole building (beam assumption,
   Cording et al. 2010, Fig. 5b). If the distortion concentrates in one
   bay and the rest of the building only tilts (Fig. 5a), the real tilt

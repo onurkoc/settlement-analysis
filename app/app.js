@@ -40,6 +40,7 @@ async function main() {
     /** @type {Result | null} */
     let result = null;
     let pending = false;
+    let runs = 0;
     let lastHash = '';
 
     const inputs = renderInputs($('input-form'), {
@@ -91,6 +92,7 @@ async function main() {
         result = compute(state);
         plots.update(result);
         renderResults($('results'), summaryRows(state, result));
+        runs++;
     }
 
     function writeHash() {
@@ -163,6 +165,8 @@ async function main() {
     /** @type {any} */ (window).app = {
         get state() { return state; },
         get result() { return result; },
+        /** number of finished calculations */
+        get runs() { return runs; },
         set(/** @type {State} */ s) { replace(s); },
         plots,
         ready: true,

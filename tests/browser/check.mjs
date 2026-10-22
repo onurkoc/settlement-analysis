@@ -174,35 +174,72 @@ try {
         const a = lum(cs.color), b = lum(cs.backgroundColor);
         return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 100) / 100;
     })()`;
-    // tunnel circles: round on the screen (width = height) and inside the frame
+    // set a state in the page and wait until it is calculated and drawn
+    // (a fixed pause was too short now and then: the glyph had no screen
+    // coordinates yet)
+    const SET_STATE = `async (s) => {
+        const before = window.app.runs;
+        window.app.set(s);
+        for (let i = 0; i < 200 && window.app.runs === before; i++) {
+            await new Promise((r) => setTimeout(r, 10));
+        }
+        if (window.app.runs === before) throw new Error('state not calculated within 2 s');
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 30))));
+    }`;
+    // tunnel circles: round, crown at −(H − D/2) on the depth axis (1 px),
+    // below the ground line, inside the frame; H = 7.5/30/50, D = 2/10/20
+    // (valid combinations) and the limit case cover = 1.0 m
     const CIRCLES = `(async () => {
         const st = await import('./state.js');
+        const setState = ${SET_STATE};
         const out = [];
-        for (const H of [5, 30, 60]) {
-            for (const D of [2, 10, 20]) {
-                for (const n of [1, 2]) {
-                    let s = st.defaultState();
-                    s.tunnels[0] = { H, D, VL: 1, K: 0.35 };
-                    if (n === 2) { s = st.switchTunnels(s, 2); s.c = Math.max(13.5, D); }
-                    window.app.set(s);
-                    await new Promise((r) => setTimeout(r, 120));
-                    const d = window.app.plots.debug;
-                    const v = d.views.get_one(d.trough.plot);
-                    const g = v.renderer_views.get(d.trough.circles).glyph;
-                    const f = v.frame.bbox;
-                    const xs = v.frame.x_scale;
-                    for (let j = 0; j < n; j++) {
-                        const t = window.app.result.tunnels[j];
-                        const w = Math.abs(xs.compute(t.x + t.D / 2) - xs.compute(t.x - t.D / 2));
-                        const h = 2 * g.sradius[j];
-                        const inside = g.sy[j] - g.sradius[j] >= f.top - 0.5 && g.sy[j] + g.sradius[j] <= f.bottom + 0.5
-                            && g.sx[j] - g.sradius[j] >= f.left - 0.5 && g.sx[j] + g.sradius[j] <= f.right + 0.5;
-                        if (Math.abs(w - h) > 1 || !inside) out.push({ H, D, n, j, w, h, inside });
+        const cases = [[6, 10]];
+        for (const H of [7.5, 30, 50]) for (const D of [2, 10, 20]) if (H - D / 2 >= 1) cases.push([H, D]);
+        let checked = 0;
+        for (const [H, D] of cases) {
+            for (const n of [1, 2]) {
+                let s = st.defaultState();
+                s.tunnels[0] = { H, D, VL: 1, K: 0.35 };
+                if (n === 2) { s = st.switchTunnels(s, 2); s.c = Math.max(13.5, D); }
+                await setState(s);
+                const d = window.app.plots.debug;
+                const v = d.views.get_one(d.trough.plot);
+                const g = v.renderer_views.get(d.trough.circles).glyph;
+                const f = v.frame.bbox;
+                const ys = v.frame.y_scales.get('depth');
+                const zero = ys.compute(0);
+                for (let j = 0; j < n; j++) {
+                    const t = window.app.result.tunnels[j];
+                    const r = g.sradius[j];
+                    const height = Math.abs(ys.compute(-t.H - t.D / 2) - ys.compute(-t.H + t.D / 2));
+                    const crown = g.sy[j] - r;
+                    const crownAxis = ys.compute(-(t.H - t.D / 2));
+                    const inside = crown >= f.top - 0.5 && g.sy[j] + r <= f.bottom + 0.5
+                        && g.sx[j] - r >= f.left - 0.5 && g.sx[j] + r <= f.right + 0.5;
+                    const below = crown > zero + (H - D / 2 <= 1 ? 2 : 0);
+                    checked++;
+                    if (!(Math.abs(2 * r - height) <= 1 && Math.abs(crown - crownAxis) <= 1 && inside && below)) {
+                        out.push({ H, D, n, j, r2: 2 * r, height, crown, crownAxis, zero, inside, below });
                     }
                 }
             }
         }
-        return out;
+        return { bad: out, checked };
+    })()`;
+    // default 1 and 2 tunnels: lowest point of the curves above the highest crown [px]
+    const OVERLAP = `(() => {
+        const d = window.app.plots.debug;
+        const v = d.views.get_one(d.trough.plot);
+        const y = v.frame.y_scale;
+        let curves = -Infinity;
+        for (const r of d.trough.curves) {
+            if (!r.visible) continue;
+            const ys = r.data_source.data[r.glyph.y.field];
+            for (const val of ys) if (Number.isFinite(val)) curves = Math.max(curves, y.compute(val));
+        }
+        const g = v.renderer_views.get(d.trough.circles).glyph;
+        const crown = Math.min(...Array.from(g.sy).map((sy, j) => sy - g.sradius[j]));
+        return { curves: Math.round(curves), crown: Math.round(crown), ok: curves < crown };
     })()`;
     const setHash = async (hash) => {
         await evaluate(`location.hash = ${JSON.stringify(hash)}`);
@@ -239,7 +276,7 @@ try {
     // hover on the trough
     const rect = await evaluate(`(() => { const r = document.getElementById('plot-trough').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
     for (let k = 0; k < 6; k++) {
-        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rect.x + rect.w * 0.58 + k, y: rect.y + rect.h * 0.55 });
+        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rect.x + rect.w * 0.58 + k, y: rect.y + rect.h * 0.4 });
         await sleep(40);
     }
     await sleep(300);
@@ -252,6 +289,7 @@ try {
     check('governing marker fully inside the damage plot', await evaluate(`(() => { const d = window.app.plots.debug.damage.plot; const g = window.app.result.building.governing; return d.y_range.start < 0 && d.x_range.start < 0 && g.epsLEff * 1000 >= 0; })()`));
     const c1 = await evaluate(CONTRAST);
     check('category label contrast >= 4.5 (light)', c1 >= 4.5, c1);
+    check('default 1 tunnel: curves above the tunnel', (await evaluate(OVERLAP)).ok, await evaluate(OVERLAP));
     await shot('desktop_1tunnel', 1366, 900, false);
 
     // ---- input change through the form: H of tunnel 1 = 22 -------------
@@ -312,7 +350,19 @@ try {
     check('panel = assessBuilding(), 2 tunnels', panel.diffs.length === 0 && panel.same,
           { diffs: panel.diffs, cat: panel.cat, epsP: panel.gov.epsP });
     check('zero aligned, 2 tunnels', (await evaluate(ZERO)).ok, await evaluate(ZERO));
+    check('default 2 tunnels: curves above the tunnels', (await evaluate(OVERLAP)).ok, await evaluate(OVERLAP));
     await shot('desktop_2tunnels', 1366, 900, false);
+    // hover of each tunnel curve (as in the earlier app) besides the combined one
+    const r2 = await evaluate(`(() => { const r = document.getElementById('plot-trough').getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })()`);
+    for (let k = 0; k < 6; k++) {
+        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: r2.x + r2.w * 0.45 + k, y: r2.y + r2.h * 0.25 });
+        await sleep(40);
+    }
+    await sleep(300);
+    const tip2 = await evaluate(`(() => { const out = []; const walk = (n) => { if (n.shadowRoot) walk(n.shadowRoot); for (const c of n.children ?? []) walk(c); if (n.classList && [...n.classList].some((c) => /tooltip/i.test(c)) && n.offsetParent !== null) out.push(n.textContent); }; walk(document.body); return out.join(' | '); })()`);
+    check('2 tunnels: hover of tunnel 1, tunnel 2 (S, slope) and combined', /Tunnel 1: S.*Slope/s.test(tip2) && /Tunnel 2: S.*Slope/s.test(tip2) && /Sh/.test(tip2),
+          tip2.replace(/\s+/g, ' ').slice(0, 220));
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 });
 
     // derived glyphs (drawn while the hover inspects the source) carry the theme colours
     const glyphColors = await evaluate(`(() => {
@@ -337,8 +387,19 @@ try {
     check('"0,4" typed: K = 0.4, shown as 0.4', (await evaluate('window.app.state.tunnels[0].K')) === 0.4 &&
           (await evaluate(`document.getElementById('in-tunnels-0-K').value`)) === '0.4');
 
-    let bad = await evaluate(CIRCLES);
-    check('tunnel circles round and inside the frame, H = 5/30/60, D = 2/10/20, 1 and 2 tunnels (desktop)', bad.length === 0, bad);
+    let circles = await evaluate(CIRCLES);
+    check(`tunnel circles: round, crown at −(H − D/2) ±1 px, below y = 0, inside (desktop, ${circles.checked} circles)`,
+          circles.bad.length === 0 && circles.checked > 20, circles.bad);
+
+    for (const [name, h] of [['desktop_shallow_H7.5_D10', '#n=1&t1=7.5,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1'],
+                             ['desktop_deep_H50_D10', '#n=1&t1=50,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1']]) {
+        await setHash(h);
+        await sleep(200);
+        // no check of the overlap here: the division of the earlier app
+        // (curves down to −5·S_max in the upper part) is kept, a shallow
+        // tunnel can reach into the curves
+        await shot(name, 1366, 900, false);
+    }
 
     // ---- fields b = 5 m, one tunnel --------------------------------------
     await setHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=5&fl=1&dx=0.1');
@@ -394,8 +455,8 @@ try {
           await evaluate('[document.documentElement.scrollWidth, innerWidth]'));
     check('phone: zero aligned', (await evaluate(ZERO)).ok);
     await checkAlign('phone');
-    bad = await evaluate(CIRCLES);
-    check('tunnel circles round and inside the frame (phone)', bad.length === 0, bad);
+    circles = await evaluate(CIRCLES);
+    check(`tunnel circles (phone, ${circles.checked} circles)`, circles.bad.length === 0 && circles.checked > 20, circles.bad);
     await setHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
     await sleep(300);
     await shot('phone_1tunnel', 390, 844, true);

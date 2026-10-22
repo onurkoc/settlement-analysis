@@ -23,10 +23,15 @@ test('compute: same trough as troughProfile and same building as assessBuilding'
         const tunnels = coreTunnels(s);
         assert.equal(tunnels[0].VL, 0.01);
         const p = troughProfile(tunnels, s.dx);
-        assert.deepEqual(r.trough.x, p.x);
-        assert.deepEqual(r.trough.S, p.S);
-        assert.deepEqual(r.trough.Sh, p.Sh);
-        assert.deepEqual(r.trough.Sj, p.Sj);
+        // the plotted grid (at least ±50 m) contains the grid of troughProfile
+        const k0 = r.trough.x.indexOf(p.x[0]);
+        assert.ok(k0 >= 0 && r.trough.x.length >= p.x.length && r.R >= 50);
+        /** @param {number[]} a */
+        const part = (a) => a.slice(k0, k0 + p.x.length);
+        assert.deepEqual(part(r.trough.x), p.x);
+        assert.deepEqual(part(r.trough.S), p.S);
+        assert.deepEqual(part(r.trough.Sh), p.Sh);
+        assert.deepEqual(r.trough.Sj.map(part), p.Sj);
         assert.deepEqual(r.building, assessBuilding(tunnels, { center: 0, L: 20 }));
         assert.equal(r.inflections.length, 2 * tunnels.length);
     }
@@ -38,6 +43,7 @@ test('compute: grid widened when the building lies outside the trough range', ()
     const r = compute(s);
     assert.ok(r.trough.x[r.trough.x.length - 1] >= 70);
     assert.ok(r.R >= 70);
+    assert.equal(compute(ONE).R, 50);
 });
 
 test('summary rows: values and formats (mm 2, ×10⁻³ 3, 1/n integer)', () => {
@@ -161,33 +167,40 @@ test('category names inside their areas', () => {
     }
 });
 
-test('trough plot: tunnel circles (radius D/2 on the x axis) inside the frame, H = 5 ... 60 m, D = 2 ... 20 m', () => {
-    for (const [width, height] of [[850, 330], [230, 300]]) {
-        for (const H of [5, 30, 60]) {
-            for (const D of [2, 10, 20]) {
-                for (const count of [1, 2]) {
-                    let s = defaultState();
-                    s.tunnels[0] = { H, D, VL: 1, K: 0.35 };
-                    if (count === 2) {
-                        s = switchTunnels(s, 2);
-                        s.c = Math.max(13.5, D);
-                    }
-                    const r = compute(s);
-                    const [x0, x1] = xRange(r, { width, height });
-                    const frame = { width, height, xSpan: x1 - x0 };
-                    const { y, depth } = troughRanges(r, frame);
-                    const span = depth[1] - depth[0];
-                    for (const t of r.tunnels) {
-                        const centre = (depth[1] + t.H) / span;          // from the top, fraction
-                        const rho = (t.D / 2) * (width / frame.xSpan) / height;
-                        const label = `${width}x${height} H=${H} D=${D} n=${count}`;
-                        assert.ok(centre - rho >= 0 && centre + rho <= 1, label);
-                        // horizontally inside the x range
-                        assert.ok(Math.abs(t.x) + t.D / 2 <= x1, label);
-                    }
-                    assert.ok(Math.abs(zeroFraction(...y) - zeroFraction(...depth)) < 1e-12);
+test('trough plot as in the earlier app: curves above, tunnels below, crown and invert on the depth axis', () => {
+    for (const H of [7.5, 30, 50]) {
+        for (const D of [2, 10, 20]) {
+            if (H - D / 2 < 1) continue;      // not valid: crown cover < 1.0 m
+            for (const count of [1, 2]) {
+                let s = defaultState();
+                s.tunnels[0] = { H, D, VL: 1, K: 0.35 };
+                if (count === 2) {
+                    s = switchTunnels(s, 2);
+                    s.c = Math.max(13.5, D);
                 }
+                const r = compute(s);
+                const { y, depth } = troughRanges(r);
+                const label = `H=${H} D=${D} n=${count}`;
+                // left axis from −5·S_max (combined trough)
+                assert.ok(Math.abs(y[0] + 5 * r.trough.Smax * 1000) < 1e-9 || y[0] < -5 * r.trough.Smax * 1000, label);
+                assert.ok(y[1] > 0 && y[1] >= Math.max(...r.trough.Sh) * 1000, label);
+                // right axis down to the deepest invert + 5 m
+                assert.equal(depth[0], -(H + D / 2 + 5), label);
+                assert.ok(Math.abs(zeroFraction(...y) - zeroFraction(...depth)) < 1e-12, label);
+                // the crown lies below the ground line
+                assert.ok(-(H - D / 2) < 0 && -(H - D / 2) < depth[1], label);
             }
         }
+    }
+});
+
+test('default 1 and 2 tunnels: settlement curve and tunnels do not overlap', () => {
+    for (const s of [ONE, TWO]) {
+        const r = compute(s);
+        const { y, depth } = troughRanges(r);
+        // fractions of the height from the top
+        const curveBottom = (y[1] + Math.max(...r.trough.S) * 1000) / (y[1] - y[0]);   // lowest point of S
+        const crown = Math.min(...r.tunnels.map((t) => (depth[1] + t.H - t.D / 2) / (depth[1] - depth[0])));
+        assert.ok(curveBottom < crown, `${curveBottom} < ${crown}`);
     }
 });
