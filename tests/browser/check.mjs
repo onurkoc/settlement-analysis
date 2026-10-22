@@ -142,6 +142,34 @@ try {
         const a = f.y_scale.compute(0), b = f.y_scales.get('depth').compute(0);
         return { left: a, right: b, ok: Math.abs(a - b) < 1e-6 };
     })()`;
+    // screen position of x = xL and x = xR in the building and trough plots
+    const ALIGN = `(() => {
+        const d = window.app.plots.debug;
+        const e = window.app.result.building.edges;
+        const px = (plot, x) => {
+            const v = d.views.get_one(plot);
+            return v.el.getBoundingClientRect().left + v.frame.x_scale.compute(x);
+        };
+        // building edges and the middle of the visible range (on screen after a zoom)
+        const mid = (d.sharedX.start + d.sharedX.end) / 2;
+        const res = [e.xL, e.xR, mid].map((x) => [px(d.building.plot, x), px(d.trough.plot, x)]);
+        return { px: res.map((q) => q.map((v) => Math.round(v * 10) / 10)),
+                 ok: res.every(([a, b]) => Math.abs(a - b) <= 1) };
+    })()`;
+    const checkAlign = async (label) => {
+        await sleep(200);
+        const a = await evaluate(ALIGN);
+        check(`x axes aligned (xL, xR within 1 px): ${label}`, a.ok, a.px);
+    };
+    // contrast of the category label (WCAG): text on its background
+    const CONTRAST = `(() => {
+        const chip = document.querySelector('tr[data-key="category"] .chip');
+        const cs = getComputedStyle(chip);
+        const rgb = (c) => c.match(/[0-9.]+/g).slice(0, 3).map(Number);
+        const lum = (c) => { const [r, g, b] = rgb(c).map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+        const a = lum(cs.color), b = lum(cs.backgroundColor);
+        return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 100) / 100;
+    })()`;
     const setHash = async (hash) => {
         await evaluate(`location.hash = ${JSON.stringify(hash)}`);
         await settle();
@@ -183,6 +211,12 @@ try {
     const tip = await evaluate(`(() => { const out = []; const walk = (n) => { if (n.shadowRoot) walk(n.shadowRoot); for (const c of n.children ?? []) walk(c); if (n.classList && [...n.classList].some((c) => /tooltip/i.test(c)) && n.offsetParent !== null) out.push(n.textContent); }; walk(document.body); return out.join(' | '); })()`);
     check('hover shows x, S, slope, Sh, ε_h', /x.*S.*Slope.*1\/\d+.*Sh.*ε_h/s.test(tip), tip.replace(/\s+/g, ' ').slice(0, 160));
     await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 });
+    await checkAlign('desktop, 1 tunnel');
+    check('pointwise: governing field as line in its category colour',
+          await evaluate(`(() => { const d = window.app.plots.debug.trough; const p = d.plot; const spans = p.center.filter((m) => m.type === 'Span' && m.line_width === 2.5); const box = p.center.find((m) => m.type === 'BoxAnnotation' && m.fill_alpha === 0.25); const cat = getComputedStyle(document.documentElement).getPropertyValue('--cat' + window.app.result.building.category.level).trim(); return spans.length === 1 && spans[0].visible && spans[0].line_color === cat && !box.visible; })()`));
+    check('governing marker fully inside the damage plot', await evaluate(`(() => { const d = window.app.plots.debug.damage.plot; const g = window.app.result.building.governing; return d.y_range.start < 0 && d.x_range.start < 0 && g.epsLEff * 1000 >= 0; })()`));
+    const c1 = await evaluate(CONTRAST);
+    check('category label contrast >= 4.5 (light)', c1 >= 4.5, c1);
     await shot('desktop_1tunnel', 1366, 900, false);
 
     // ---- input change through the form: H of tunnel 1 = 22 -------------
@@ -213,6 +247,16 @@ try {
     const yAfterBox = await evaluate('[window.app.plots.debug.trough.yRange.start, window.app.plots.debug.trough.yRange.end]');
     check('zero aligned after box zoom', (await evaluate(ZERO)).ok && yAfterBox[0] !== yAfterWheel[0],
           { ...(await evaluate(ZERO)), y: yAfterBox });
+
+    // pan: the shared x range moves both plots
+    await evaluate(`(() => { const p = window.app.plots.debug.trough.plot; p.toolbar.active_drag = p.toolbar.tools.find((t) => t.type === 'PanTool'); })()`);
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x + rect.w * 0.5, y: rect.y + rect.h * 0.3, button: 'left', clickCount: 1 });
+    for (let k = 1; k <= 10; k++) {
+        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rect.x + rect.w * 0.5 - 12 * k, y: rect.y + rect.h * 0.3 + 3 * k, button: 'left', buttons: 1 });
+        await sleep(20);
+    }
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x + rect.w * 0.5 - 120, y: rect.y + rect.h * 0.3 + 30, button: 'left', clickCount: 1 });
+    await checkAlign('after wheel zoom, box zoom and pan');
 
     // ---- two tunnels through the form ---------------------------------
     await setHash('#n=1&t1=0,30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
@@ -295,6 +339,7 @@ try {
     check('phone: no horizontal scrolling', await evaluate('document.documentElement.scrollWidth <= innerWidth'),
           await evaluate('[document.documentElement.scrollWidth, innerWidth]'));
     check('phone: zero aligned', (await evaluate(ZERO)).ok);
+    await checkAlign('phone');
     await shot('phone_1tunnel', 390, 844, true);
     await evaluate(`document.querySelector('#inputs > summary').click()`);
     await settle();
@@ -302,13 +347,53 @@ try {
           (await evaluate(`document.getElementById('inputs').open`)) && (await evaluate('document.documentElement.scrollWidth <= innerWidth')));
     await shot('phone_inputs_open', 390, 844, true);
 
-    // ---- dark theme (not stored, only checked) ------------------------------
+    // ---- tab Information -------------------------------------------------
+    const INFO = `(async () => {
+        await document.fonts.ready;
+        const tex = document.querySelectorAll('#tab-info [data-tex]').length;
+        const rendered = document.querySelectorAll('#tab-info [data-tex] .katex').length;
+        const errors = document.querySelectorAll('#tab-info .katex-error').length;
+        const rows = document.querySelectorAll('#damage-table tbody tr').length;
+        const kafont = [...document.fonts].some((f) => f.family.includes('KaTeX') && f.status === 'loaded');
+        const calcHidden = document.getElementById('tab-calc').offsetParent === null;
+        return { tex, rendered, errors, rows, kafont, calcHidden, scroll: document.documentElement.scrollWidth <= innerWidth };
+    })()`;
+    await evaluate(`document.getElementById('tab-btn-info').click()`);
+    await sleep(800);
+    let info = await evaluate(INFO);
+    check('information: formulas rendered, table filled, KaTeX fonts loaded (phone)',
+          info.calcHidden && info.tex > 20 && info.rendered === info.tex && info.errors === 0 && info.rows === 5 && info.kafont && info.scroll, info);
+    await shot('info_phone', 390, 844, true);
+    await viewport(1366, 900, false);
+    await settle();
+    info = await evaluate(INFO);
+    check('information: desktop', info.calcHidden && info.rendered === info.tex && info.scroll, info);
+    await shot('info_desktop', 1366, 900, false);
+    await evaluate(`document.getElementById('tab-btn-calc').click()`);
+    await settle();
+
+    // ---- dark theme ------------------------------------------------------------
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
     await viewport(1366, 900, false);
     await settle();
     check('dark theme reaches the plots', (await evaluate('window.app.plots.debug.trough.plot.background_fill_color')) ===
           (await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()`)));
-    if (arg('--dark', null)) await shot('desktop_dark', 1366, 900, false);
+    await checkAlign('desktop, dark');
+    const c2 = await evaluate(CONTRAST);
+    check('category label contrast >= 4.5 (dark)', c2 >= 4.5, c2);
+    // PNG export in the light theme, the plot back in the dark theme afterwards
+    const png = await evaluate(`(async () => {
+        const blob = await window.app.plots.debug.pngBlob('trough');
+        const img = await createImageBitmap(blob);
+        const c = new OffscreenCanvas(img.width, img.height);
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0);
+        const px = Array.from(g.getImageData(3, 3, 1, 1).data);
+        return { px, w: img.width, after: window.app.plots.debug.trough.plot.background_fill_color };
+    })()`);
+    check('PNG export in the light theme, also in dark mode', png.px[0] > 240 && png.px[1] > 240 && png.px[2] > 240 &&
+          png.after === (await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()`)), png);
+    await shot('desktop_dark', 1366, 900, false);
 
     // ---- console and requests ------------------------------------------------
     const foreign = requests.filter((u) => !u.startsWith(ORIGIN) && !u.startsWith('data:') && !u.startsWith('blob:'));

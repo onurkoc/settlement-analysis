@@ -10,6 +10,8 @@ import { compute, summaryRows, coreTunnels, modeText } from '../app/model.js';
 import { buildCsv, cell, SEP, EOL } from '../app/csv.js';
 import { alignZero, zeroFraction, troughRanges, damageRanges } from '../app/plots/ranges.js';
 import { troughProfile } from '../app/core/trough.js';
+import { categoryAreas, areaLabelPosition } from '../app/plots/damage.js';
+import { limitCurves, principalStrain, DAMAGE_LIMITS } from '../app/core/damage.js';
 import { assessBuilding } from '../app/core/building.js';
 
 const ONE = defaultState();
@@ -116,8 +118,43 @@ test('zero of both y axes at the same height, data inside', () => {
     }
 });
 
-test('damage plot range: 0…7 × 0…4, extended for large values', () => {
-    assert.deepEqual(damageRanges([0.001], [0.002]), { x: [0, 7], y: [0, 4] });
+test('damage plot range: 0…7 × 0…4 (from a little below 0), extended for large values', () => {
+    assert.deepEqual(damageRanges([0.001], [0.002]), { x: [-0.14, 7], y: [-0.16, 4] });
     const r = damageRanges([0.01], [0.005]);
     assert.ok(Math.abs(r.x[1] - 11) < 1e-12 && Math.abs(r.y[1] - 5.5) < 1e-12);
+    assert.ok(r.x[0] < 0 && r.y[0] < 0);
+});
+
+test('category areas: closed, not self-intersecting, between the limit lines', () => {
+    const curves = limitCurves(201).map((c) => ({ beta: c.beta.map((v) => v * 1000), epsL: c.epsL.map((v) => v * 1000) }));
+    const areas = categoryAreas(curves);
+    assert.equal(areas.length, 5);
+    /** signed area (shoelace) @param {{x: number[], y: number[]}} a */
+    const shoelace = (a) => {
+        let s = 0;
+        for (let k = 0; k < a.x.length; k++) {
+            const j = (k + 1) % a.x.length;
+            s += a.x[k] * a.y[j] - a.x[j] * a.y[k];
+        }
+        return s / 2;
+    };
+    // area below a limit line: quarter of an ellipse-like curve, trapezoidal rule
+    /** @param {{beta: number[], epsL: number[]}} c */
+    const below = (c) => c.beta.slice(1).reduce((s, b, k) => s + (b - c.beta[k]) * (c.epsL[k + 1] + c.epsL[k]) / 2, 0);
+    const signs = areas.map((a) => Math.sign(shoelace(a)));
+    assert.ok(signs.every((s) => s === signs[0]), 'same orientation');
+    for (let k = 0; k < 4; k++) {
+        const expected = below(curves[k]) - (k > 0 ? below(curves[k - 1]) : 0);
+        assert.ok(Math.abs(Math.abs(shoelace(areas[k])) - expected) < 1e-9, `area ${k}`);
+    }
+    assert.ok(Math.abs(Math.abs(shoelace(areas[4])) - (1000 * 1000 - below(curves[3]))) < 1e-6, 'area 4');
+});
+
+test('category names inside their areas', () => {
+    const u = [0, ...DAMAGE_LIMITS.categories.map((c) => c.upper * 1000)];
+    for (const [k, lo, hi] of [[2, u[2], u[3]], [3, u[3], u[4]], [4, u[4], u[4] * 1.4]]) {
+        const p = areaLabelPosition(lo, hi);
+        const e = principalStrain(p.x, p.y);
+        assert.ok(e > lo && e < hi, `area ${k}: ${e}`);
+    }
 });

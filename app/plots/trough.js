@@ -42,8 +42,11 @@ export function createTroughPlot(B, xRange, th) {
     const axisY = new B.Span({ location: 0, dimension: 'width', line_width: 1 });
     const tunnelAxes = [0, 1].map(() => new B.Span({ location: 0, dimension: 'height', line_width: 1, line_dash: [2, 4] }));
     const edges = [0, 1].map(() => new B.Span({ location: 0, dimension: 'height', line_width: 2, line_dash: [6, 4] }));
+    // governing field: area in the field mode, a line at its centre if
+    // pointwise (the area would be only Δx wide); colour of its category
     const governing = new B.BoxAnnotation({ left: 0, right: 1, fill_alpha: 0.25, line_alpha: 0.9, line_width: 1 });
-    for (const m of [axisX, axisY, ...tunnelAxes, ...edges, governing]) p.add_layout(m);
+    const governingLine = new B.Span({ location: 0, dimension: 'height', line_width: 2.5, visible: false });
+    for (const m of [axisX, axisY, ...tunnelAxes, ...edges, governing, governingLine]) p.add_layout(m);
 
     const rT1 = p.line({ field: 'x' }, { field: 'S1' }, { source: curves, line_width: 1.5, line_dash: [4, 3] });
     const rT2 = p.line({ field: 'x' }, { field: 'S2' }, { source: curves, line_width: 1.5, line_dash: [4, 3] });
@@ -65,7 +68,7 @@ export function createTroughPlot(B, xRange, th) {
     };
     // below the plot: inside it would cover the tunnels on a narrow screen
     const legend = new B.Legend({ items: Object.values(items), orientation: 'horizontal', click_policy: 'hide',
-                                  location: 'center', ncols: 'auto' });
+                                  location: 'center', ncols: 5 });
     p.add_layout(legend, 'below');
 
     p.add_tools(new B.HoverTool({
@@ -80,14 +83,24 @@ export function createTroughPlot(B, xRange, th) {
         ],
     }));
 
+    let theme = th;
+    let level = 0;
+
+    /** colour of the category of the governing field */
+    function governingColour() {
+        governing.setv({ fill_color: theme.cats[level], line_color: theme.cats[level] });
+        governingLine.line_color = theme.cats[level];
+    }
+
     /** @param {Theme} t */
     function setTheme(t) {
+        theme = t;
         applyFrame(B, p, t);
         axisX.line_color = t.line;
         axisY.line_color = t.line;
         tunnelAxes.forEach((s) => { s.line_color = t.muted; });
         edges.forEach((s) => { s.line_color = t.building; });
-        governing.setv({ fill_color: t.accent, line_color: t.accent });
+        governingColour();
         setGlyph(rT1, { line_color: t.tunnel1 });
         setGlyph(rT2, { line_color: t.tunnel2 });
         setGlyph(rS, { line_color: t.accent });
@@ -133,7 +146,11 @@ export function createTroughPlot(B, xRange, th) {
         edges[0].location = e.xL;
         edges[1].location = e.xR;
         const g = r.building.governing;
-        governing.setv({ left: g.xa, right: g.xb });
+        const pointwise = r.building.fields.mode === 'pointwise';
+        governing.setv({ left: g.xa, right: g.xb, visible: !pointwise });
+        governingLine.setv({ location: (g.xa + g.xb) / 2, visible: pointwise });
+        level = r.building.category.level;
+        governingColour();
 
         const { y, depth } = troughRanges(r);
         yRange.setv({ start: y[0], end: y[1], reset_start: y[0], reset_end: y[1] });
@@ -142,11 +159,11 @@ export function createTroughPlot(B, xRange, th) {
 
     /**
      * Legend as a list on a narrow screen (Bokeh does not wrap it), in
-     * one row otherwise.
+     * one row otherwise (five items at most).
      * @param {boolean} narrow
      */
     function setNarrow(narrow) {
-        legend.ncols = narrow ? 1 : 'auto';
+        legend.ncols = narrow ? 1 : 5;
     }
 
     return { plot: p, update, setTheme, setNarrow, yRange, depthRange };

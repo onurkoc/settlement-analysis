@@ -1,5 +1,7 @@
-/* Settlement Analysis. Colours and type as apps.onurkoc.net. */
-:root {
+/* Settlement Analysis. Colours and type as apps.onurkoc.net.
+   [data-theme="light"] keeps the light colours in dark mode: the
+   hidden element #theme-light gives the colours of the PNG export. */
+:root, [data-theme="light"] {
   --bg: #f6f5f2;
   --surface: #ffffff;
   --text: #1c1b19;
@@ -18,18 +20,22 @@
   --building: #65a30d;
   --tunnel-fill: #a8a29e;
   --field: #8a867d;
-  /* damage categories 0 ... 4-5 */
-  --cat0: #2e7d4f;
-  --cat1: #7a9a1f;
-  --cat2: #c99400;
-  --cat3: #d9630b;
-  --cat4: #c0262d;
+  /* damage categories 0 ... 4-5, the same in light and dark mode:
+     dark text on these colours >= 4.7:1 (WCAG AA), the colours against
+     the light and the dark surface >= 3.6:1 (lines in the plots) */
+  --cat0: #2c9959;
+  --cat1: #74911f;
+  --cat2: #a7810e;
+  --cat3: #d96412;
+  --cat4: #e15a56;
+  --cat-text: #1c1b19;
+  --band-alpha: 0.16;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-plot: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #141413;
     --surface: #1d1c1a;
     --text: #f1efe9;
@@ -47,16 +53,14 @@
     --building: #84cc16;
     --tunnel-fill: #57534e;
     --field: #8f8b83;
-    --cat0: #4cc27f;
-    --cat1: #a9cf50;
-    --cat2: #f0c13a;
-    --cat3: #f08a3c;
-    --cat4: #ef5350;
+    --band-alpha: 0.22;
     color-scheme: dark;
   }
 }
 
 * { box-sizing: border-box; }
+/* hidden wins over display: grid/flex of the layout rules */
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--bg);
@@ -163,11 +167,31 @@ body.stale .plots, body.stale .results { opacity: .45; }
 .results-grid td.value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .results-grid td.unit { color: var(--muted); padding-left: 6px; width: 4.5em; font-size: 13px; }
 .results-grid td.category { white-space: normal; }
-.cat0 { color: var(--cat0); } .cat1 { color: var(--cat1); } .cat2 { color: var(--cat2); }
-.cat3 { color: var(--cat3); } .cat4 { color: var(--cat4); }
+.chip {
+  display: inline-block; padding: 1px 8px; border-radius: 6px;
+  color: var(--cat-text); font-weight: 700;
+}
+.cat0 { background: var(--cat0); } .cat1 { background: var(--cat1); } .cat2 { background: var(--cat2); }
+.cat3 { background: var(--cat3); } .cat4 { background: var(--cat4); }
 td.ok { color: var(--ok); }
 td.fail { color: var(--error); }
 
-.info { padding: 16px 20px; }
+.info { padding: 16px 20px 24px; max-width: 980px; }
+.info h2 { margin: 0 0 6px; }
+.info h3 { font-size: 16px; margin: 22px 0 6px; color: var(--accent); }
+.info p, .info li { max-width: 78ch; }
+.info .note { border-left: 3px solid var(--accent); padding: 4px 10px; background: var(--accent-soft); border-radius: 4px; }
+.info .small { font-size: 13px; color: var(--muted); }
+.info .symbols { font-size: 14px; color: var(--muted); }
+.formulas { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+.formulas .katex-display { margin: 8px 0; text-align: left; }
+.formulas .katex-display > .katex { text-align: left; }
+.katex { font-size: 1.08em; }
+@media (max-width: 599px) { .formulas .katex { font-size: 0.95em; } }
+.table-wrap { overflow-x: auto; }
+table.data { border-collapse: collapse; font-size: 14px; margin: 6px 0; }
+table.data th, table.data td { text-align: left; padding: 4px 14px 4px 0; border-bottom: 1px solid var(--grid); }
+table.data th { color: var(--muted); font-weight: 600; }
+.sources li { margin: 4px 0; }
 footer { border-top: 1px solid var(--line); padding: 20px 0 32px; color: var(--muted); font-size: 14px; }
 footer a { color: inherit; }

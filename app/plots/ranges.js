@@ -51,7 +51,8 @@ export function troughRanges(r) {
 
 /**
  * Ranges of the damage plot [×10⁻³]: 0 ... 7 and 0 ... 4 as in Cording
- * et al. (2010), Fig. 2, extended if a field lies outside.
+ * et al. (2010), Fig. 2, extended if a field lies outside. Both start
+ * a little below 0, so a marker at β = 0 or ε_L,eff = 0 is not cut.
  * @param {number[]} beta  [-]
  * @param {number[]} epsLEff  [-]
  * @returns {{x: [number, number], y: [number, number]}}
@@ -59,7 +60,9 @@ export function troughRanges(r) {
 export function damageRanges(beta, epsLEff) {
     const bx = Math.max(0, ...beta) * 1000;
     const ey = Math.max(0, ...epsLEff) * 1000;
-    return { x: [0, Math.max(7, 1.1 * bx)], y: [0, Math.max(4, 1.1 * ey)] };
+    const xe = Math.max(7, 1.1 * bx);
+    const ye = Math.max(4, 1.1 * ey);
+    return { x: [-0.02 * xe, xe], y: [-0.04 * ye, ye] };
 }
 
 /**

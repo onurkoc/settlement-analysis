@@ -19,15 +19,18 @@ the plots follow the light/dark theme of the page.
  * @property {string} tunnelFill
  * @property {string} field
  * @property {string[]} cats  colours of the damage categories 0 ... 4
+ * @property {number} bandAlpha  opacity of the category areas
  * @property {string} font
  */
 
 /**
- * Read the theme from the page.
+ * Read the theme from the page, or from an element with its own
+ * colours (#theme-light: light theme for the PNG export).
+ * @param {Element} [el]
  * @returns {Theme}
  */
-export function readTheme() {
-    const cs = getComputedStyle(document.documentElement);
+export function readTheme(el = document.documentElement) {
+    const cs = getComputedStyle(el);
     /** @param {string} name */
     const v = (name) => cs.getPropertyValue(name).trim();
     return {
@@ -44,6 +47,7 @@ export function readTheme() {
         tunnelFill: v('--tunnel-fill'),
         field: v('--field'),
         cats: [0, 1, 2, 3, 4].map((k) => v(`--cat${k}`)),
+        bandAlpha: Number(v('--band-alpha')) || 0.15,
         font: v('--font-plot') || 'system-ui, sans-serif',
     };
 }
@@ -75,7 +79,7 @@ export function applyFrame(B, p, th) {
             });
         }
     }
-    for (const c of p.center) {
+    for (const c of [...p.center, ...p.below, ...p.above, ...p.left, ...p.right]) {
         if (c instanceof B.Grid) {
             c.grid_line_color = th.grid;
         } else if (c instanceof B.Legend) {
@@ -109,5 +113,9 @@ export function setGlyph(r, props) {
     }
 }
 
-/** Tools of all plots (pan, box zoom, wheel zoom, reset, save). */
-export const TOOLS = 'pan,box_zoom,wheel_zoom,reset,save';
+/**
+ * Tools of all plots: pan, box zoom, wheel zoom, reset. Saving is added
+ * by app/plots/index.js as a custom action, which exports in the light
+ * theme.
+ */
+export const TOOLS = 'pan,box_zoom,wheel_zoom,reset';

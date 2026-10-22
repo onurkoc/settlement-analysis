@@ -223,7 +223,7 @@ export function validate(s) {
 /**
  * Switch the number of tunnels. 1 -> 2: tunnel 1 at −6.75 m, tunnel 2 at
  * +6.75 m, the other values of tunnel 2 copied from tunnel 1. 2 -> 1:
- * tunnel 1 keeps its values.
+ * tunnel 1 keeps H, D, VL, K and moves to x = 0.
  * @param {State} s
  * @param {1 | 2} count
  * @returns {State}
@@ -234,6 +234,8 @@ export function switchTunnels(s, count) {
         const t = next.tunnels[0];
         next.tunnels[0] = { ...t, x: -TWO_TUNNEL_DISTANCE / 2 };
         next.tunnels[1] = { ...t, x: TWO_TUNNEL_DISTANCE / 2 };
+    } else if (count === 1 && s.count === 2) {
+        next.tunnels[0] = { ...next.tunnels[0], x: 0 };
     }
     next.count = count;
     return next;

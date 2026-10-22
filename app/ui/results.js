@@ -32,13 +32,19 @@ export function renderResults(container, rows) {
             th.textContent = row.label;
             const td = document.createElement('td');
             td.className = 'value';
-            td.textContent = row.text;
+            if (row.level !== undefined) {
+                // coloured label with dark text (contrast >= 4.5:1 in both themes)
+                const chip = document.createElement('span');
+                chip.className = `chip cat${row.level}`;
+                chip.textContent = row.text;
+                td.append(chip);
+                td.classList.add('category');
+            } else {
+                td.textContent = row.text;
+            }
             const unit = document.createElement('td');
             unit.className = 'unit';
             unit.textContent = row.unit === '-' ? '' : row.unit;
-            if (row.level !== undefined) {
-                td.classList.add('category', `cat${row.level}`);
-            }
             if (row.status) {
                 td.classList.add(row.status === 'ok' ? 'ok' : 'fail');
             }

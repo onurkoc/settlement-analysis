@@ -12,6 +12,7 @@ import { buildCsv } from './csv.js';
 import { renderInputs } from './ui/inputs.js';
 import { renderResults } from './ui/results.js';
 import { createPlots } from './plots/index.js';
+import { renderInfo } from './info.js';
 
 /** @typedef {import('./state.js').State} State */
 /** @typedef {import('./model.js').Result} Result */
@@ -49,7 +50,7 @@ async function main() {
     });
 
     const plots = await createPlots(B, {
-        building: $('plot-building'), trough: $('plot-trough'), damage: $('plot-damage'),
+        building: $('plot-building'), trough: $('plot-trough'), damage: $('plot-damage'), light: $('theme-light'),
     });
 
     /** @param {(s: State) => void} fn */
@@ -135,6 +136,9 @@ async function main() {
                 const selected = t === tab;
                 t.setAttribute('aria-selected', String(selected));
                 $(/** @type {string} */ (t.getAttribute('aria-controls'))).hidden = !selected;
+            }
+            if (tab.getAttribute('aria-controls') === 'tab-info') {
+                renderInfo($('tab-info')).catch((err) => console.error(err));
             }
         });
     }

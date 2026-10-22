@@ -1,10 +1,11 @@
 // @ts-check
 /*
 Plot "Damage assessment": angular distortion β against the effective
-lateral strain ε_L,eff [×10⁻³], lines of constant principal strain
-(Cording et al. 2010, Fig. 2, limits after Franzius 2003, Tab. 2.3),
-all fields and the governing field. Optional: limit parabolas of the
-legacy apps (Boscardin & Cording 1989).
+lateral strain ε_L,eff [×10⁻³]. The damage categories are coloured
+areas between the lines of constant principal strain (Cording et al.
+2010, Fig. 2, limits after Franzius 2003, Tab. 2.3); all fields as
+small points, the governing field as a large marker. Optional: limit
+parabolas of the legacy apps (Boscardin & Cording 1989).
 */
 import { applyFrame, setGlyph, TOOLS } from './theme.js';
 import { damageRanges } from './ranges.js';
@@ -14,16 +15,71 @@ import { formatRange } from '../model.js';
 /** @typedef {import('./theme.js').Theme} Theme */
 /** @typedef {import('../model.js').Result} Result */
 
+/** Far corner of the last area (severe), beyond any plotted range [×10⁻³]. */
+const FAR = 1000;
+
+/**
+ * Corner points of the category areas [×10⁻³]: area k lies between the
+ * lines of constant principal strain k − 1 and k (area 0 from the
+ * origin, the last one up to FAR).
+ * @param {{beta: number[], epsL: number[]}[]} curves  limit curves, ×10⁻³
+ * @returns {{x: number[], y: number[]}[]}
+ */
+export function categoryAreas(curves) {
+    const areas = [];
+    for (let k = 0; k <= curves.length; k++) {
+        const x = [];
+        const y = [];
+        if (k < curves.length) {
+            x.push(...curves[k].beta);
+            y.push(...curves[k].epsL);
+        } else {
+            // corners in the order that joins the inner line at (2ε_p, 0)
+            x.push(0, FAR, FAR);
+            y.push(FAR, FAR, 0);
+        }
+        if (k === 0) {
+            x.push(0);
+            y.push(0);
+        } else {
+            const inner = curves[k - 1];
+            for (let j = inner.beta.length - 1; j >= 0; j--) {
+                x.push(inner.beta[j]);
+                y.push(inner.epsL[j]);
+            }
+        }
+        areas.push({ x, y });
+    }
+    return areas;
+}
+
+/**
+ * Position of the name inside area k [×10⁻³]: on the line ε_L = β,
+ * halfway between the bounding lines (ε_p = β·(1 + √2)/2 on this line).
+ * @param {number} lower  ε_p of the lower line ×10⁻³ (0 for area 0)
+ * @param {number} upper  ε_p of the upper line ×10⁻³
+ */
+export function areaLabelPosition(lower, upper) {
+    const b = 2 * ((lower + upper) / 2) / (1 + Math.SQRT2);
+    return { x: b, y: b };
+}
+
+/**
+ * Areas that get their name written inside: the first two are too
+ * narrow on a phone, their names are in the legend only.
+ */
+const LABELLED = [2, 3, 4];
+
 /**
  * @param {any} B  window.Bokeh
  * @param {Theme} th
  */
 export function createDamagePlot(B, th) {
-    const xRange = new B.Range1d({ start: 0, end: 7 });
-    const yRange = new B.Range1d({ start: 0, end: 4 });
+    const xRange = new B.Range1d({ start: -0.14, end: 7 });
+    const yRange = new B.Range1d({ start: -0.16, end: 4 });
     const p = B.Plotting.figure({
         title: 'Damage assessment',
-        height: 400,
+        height: 420,
         sizing_mode: 'stretch_width',
         x_range: xRange,
         y_range: yRange,
@@ -34,24 +90,24 @@ export function createDamagePlot(B, th) {
     });
     p.toolbar.logo = null;
 
-    // lines of constant principal strain
-    const curves = limitCurves(101).map((c) => p.line(c.beta.map((v) => v * 1000), c.epsL.map((v) => v * 1000),
-                                                       { line_width: 2 }));
-    // category names: below each line near the ε_L axis, "severe" above the last one
     const cats = DAMAGE_LIMITS.categories;
-    const labelData = {
-        x: cats.map(() => 0.08),
-        y: cats.map((c, k) => (k < 4 ? c.upper : cats[3].upper) * 1000),
-        text: cats.map((c) => c.name),
-        dy: cats.map((_, k) => (k < 4 ? -3 : 3)),
-        baseline: cats.map((_, k) => (k < 4 ? 'top' : 'bottom')),
-        color: th.cats.slice(),
-    };
-    const labelSource = new B.ColumnDataSource({ data: labelData });
+    const limits = limitCurves(101).map((c) => ({
+        beta: c.beta.map((v) => v * 1000),
+        epsL: c.epsL.map((v) => v * 1000),
+    }));
+    const areas = categoryAreas(limits).map((a) => p.patch(a.x, a.y, { line_alpha: 0 }));
+    const lines = limits.map((c) => p.line(c.beta, c.epsL, { line_width: 1.5 }));
+
+    // names inside the larger areas
+    const uppers = [0, ...cats.map((c) => c.upper * 1000)];
+    uppers[cats.length] = cats[cats.length - 2].upper * 1000 * 1.4;
+    const labelPos = LABELLED.map((k) => areaLabelPosition(uppers[k], uppers[k + 1]));
+    const labelSource = new B.ColumnDataSource({
+        data: { x: labelPos.map((q) => q.x), y: labelPos.map((q) => q.y), text: LABELLED.map((k) => cats[k].name) },
+    });
     const labels = new B.LabelSet({
-        x: { field: 'x' }, y: { field: 'y' }, text: { field: 'text' }, y_offset: { field: 'dy' },
-        text_baseline: { field: 'baseline' }, text_color: { field: 'color' }, text_font_size: '12px',
-        source: labelSource,
+        x: { field: 'x' }, y: { field: 'y' }, text: { field: 'text' }, source: labelSource,
+        text_align: 'center', text_baseline: 'middle', text_font_size: '12px', text_font_style: 'bold',
     });
     p.add_layout(labels);
 
@@ -63,16 +119,23 @@ export function createDamagePlot(B, th) {
         data: { x: [], y: [], loc: [], beta: [], epsL: [], epsLEff: [], epsP: [], cat: [], color: [] },
     });
     const rFields = p.scatter({ x: { field: 'x' }, y: { field: 'y' }, source: fields, size: 5, marker: 'circle',
-                                fill_alpha: 0.6, line_alpha: 0 });
+                                fill_alpha: 0.7, line_alpha: 0 });
     const rGov = p.scatter({ x: { field: 'x' }, y: { field: 'y' }, source: gov, size: 15, marker: 'diamond',
                              fill_color: { field: 'color' }, line_width: 1.5 });
 
-    const items = {
-        fields: new B.LegendItem({ label: 'Fields', renderers: [rFields] }),
-        gov: new B.LegendItem({ label: 'Governing field', renderers: [rGov] }),
-        legacy: new B.LegendItem({ label: 'Boscardin & Cording (1989)', renderers: [legacy[0]], visible: false }),
-    };
-    p.add_layout(new B.Legend({ items: Object.values(items), location: 'top_right' }));
+    const legacyItem = new B.LegendItem({ label: 'Boscardin & Cording (1989)', renderers: [legacy[0]], visible: false });
+    const legend = new B.Legend({
+        items: [
+            ...cats.map((c, k) => new B.LegendItem({ label: `${c.label} ${c.name}`, renderers: [areas[k]] })),
+            new B.LegendItem({ label: 'Fields', renderers: [rFields] }),
+            new B.LegendItem({ label: 'Governing field', renderers: [rGov] }),
+            legacyItem,
+        ],
+        orientation: 'horizontal',
+        location: 'center',
+        ncols: 4,
+    });
+    p.add_layout(legend, 'below');
 
     p.add_tools(new B.HoverTool({
         renderers: [rGov],
@@ -87,28 +150,28 @@ export function createDamagePlot(B, th) {
     }));
 
     let theme = th;
+    let level = 0;
 
     /** @param {Theme} t */
     function setTheme(t) {
         theme = t;
         applyFrame(B, p, t);
-        curves.forEach((r, k) => setGlyph(r, { line_color: t.cats[k] }));
+        areas.forEach((r, k) => setGlyph(r, { fill_color: t.cats[k], fill_alpha: t.bandAlpha }));
+        lines.forEach((r, k) => setGlyph(r, { line_color: t.cats[k] }));
         legacy.forEach((r) => setGlyph(r, { line_color: t.muted }));
-        labelSource.data = { ...labelSource.data, color: t.cats.slice() };
+        labels.text_color = t.text;
         setGlyph(rFields, { fill_color: t.field });
         setGlyph(rGov, { line_color: t.text });
-        const g = gov.data;
-        if (g.x.length > 0) gov.data = { ...g, color: [t.cats[lastLevel]] };
+        if (gov.data.x.length > 0) gov.data = { ...gov.data, color: [t.cats[level]] };
     }
-
-    let lastLevel = 0;
+    setTheme(th);
 
     /** @param {Result} r */
     function update(r) {
         const f = r.building.fields;
         const g = r.building.governing;
         const c = r.building.category;
-        lastLevel = c.level;
+        level = c.level;
         fields.data = { x: f.beta.map((v) => v * 1000), y: f.epsLEff.map((v) => v * 1000) };
         gov.data = {
             x: [g.beta * 1000], y: [g.epsLEff * 1000],
@@ -125,9 +188,16 @@ export function createDamagePlot(B, th) {
     /** @param {boolean} show */
     function showLegacy(show) {
         legacy.forEach((r) => { r.visible = show; });
-        items.legacy.visible = show;
+        legacyItem.visible = show;
     }
 
-    setTheme(th);
-    return { plot: p, update, setTheme, showLegacy };
+    /**
+     * Legend in one column on a narrow screen, four otherwise.
+     * @param {boolean} narrow
+     */
+    function setNarrow(narrow) {
+        legend.ncols = narrow ? 1 : 4;
+    }
+
+    return { plot: p, update, setTheme, showLegacy, setNarrow };
 }

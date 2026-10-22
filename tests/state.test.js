@@ -22,7 +22,7 @@ test('defaults: one tunnel x=0, H=30, D=10, VL=1 %, K=0.35; building 0 ± 10 m; 
     assert.deepEqual(validate(s), {});
 });
 
-test('switch to two tunnels: ±6.75 m, values of tunnel 1 copied; back to one keeps tunnel 1', () => {
+test('switch to two tunnels: ±6.75 m, values of tunnel 1 copied; back to one: x = 0', () => {
     let s = defaultState();
     s.tunnels[0] = { x: 3, H: 22, D: 8, VL: 1.4, K: 0.5 };
     s = switchTunnels(s, 2);
@@ -32,7 +32,7 @@ test('switch to two tunnels: ±6.75 m, values of tunnel 1 copied; back to one ke
     s.tunnels[1].H = 35;
     const one = switchTunnels(s, 1);
     assert.equal(one.count, 1);
-    assert.deepEqual(one.tunnels[0], s.tunnels[0]);
+    assert.deepEqual(one.tunnels[0], { ...s.tunnels[0], x: 0 });
     // 2 -> 2 changes nothing
     assert.deepEqual(switchTunnels(s, 2).tunnels, s.tunnels);
 });
