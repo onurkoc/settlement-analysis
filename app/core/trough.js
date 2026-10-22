@@ -2,7 +2,7 @@
 /*
 Greenfield settlement trough above one or more tunnels.
 
-Gaussian trough (Peck 1969; O'Reilly & New 1982), one curve per tunnel,
+Gaussian trough (Peck 1969; O'Reilly & New 1982, sources in README), one curve per tunnel,
 superposed. Displacement vectors point to the tunnel axis, so the
 horizontal displacement of tunnel j is S_j·(x − x_j)/H_j towards the
 axis (O'Reilly & New 1982).

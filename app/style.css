@@ -1,6 +1,8 @@
 /* Settlement Analysis. Colours and type as apps.onurkoc.net.
-   [data-theme="light"] keeps the light colours in dark mode: the
-   hidden element #theme-light gives the colours of the PNG export. */
+   Colour scheme: the system setting (prefers-color-scheme), unless
+   data-theme="light" or "dark" is set on <html> by the switch in the
+   header (app/ui/theme.js). [data-theme="light"] also gives the hidden
+   element #theme-light the light colours for the PNG export. */
 :root, [data-theme="light"] {
   --bg: #f6f5f2;
   --surface: #ffffff;
@@ -58,6 +60,29 @@
   }
 }
 
+/* dark colours chosen in the header, also with a light system */
+:root[data-theme="dark"] {
+  --bg: #141413;
+  --surface: #1d1c1a;
+  --text: #f1efe9;
+  --muted: #a6a29a;
+  --line: #34322e;
+  --grid: #2a2926;
+  --accent: #f07a3e;
+  --accent-soft: #3a2418;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  --error: #f97066;
+  --ok: #4cc27f;
+  --tunnel1: #60a5fa;
+  --tunnel2: #2dd4bf;
+  --sh: #a78bfa;
+  --building: #84cc16;
+  --tunnel-fill: #57534e;
+  --field: #8f8b83;
+  --band-alpha: 0.22;
+  color-scheme: dark;
+}
+
 * { box-sizing: border-box; }
 /* hidden wins over display: grid/flex of the layout rules */
 [hidden] { display: none !important; }
@@ -75,13 +100,16 @@ button, input { font: inherit; color: inherit; }
 
 /* header and tabs */
 .top { border-bottom: 1px solid var(--line); background: var(--surface); }
-.top-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-top: 20px; }
+.top-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px 16px; padding-top: 20px; flex-wrap: wrap; }
 .eyebrow {
   font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
   color: var(--accent); font-weight: 600; margin: 0 0 4px;
 }
 h1 { font-size: clamp(24px, 4vw, 32px); line-height: 1.1; margin: 0 0 12px; letter-spacing: -.02em; }
-.back { font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; margin-bottom: 14px; }
+.top-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 12px; }
+.back { font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.seg.theme-switch { margin: 0; }
+.seg.theme-switch span { padding: 3px 10px; font-size: 12px; }
 .tabs { display: flex; gap: 4px; }
 .tabs [role="tab"] {
   background: none; border: 0; border-bottom: 2px solid transparent;

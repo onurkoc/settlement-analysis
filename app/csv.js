@@ -47,9 +47,11 @@ export function buildCsv(s, r) {
     out.push(line(['# Inputs', '', '']));
     out.push(line(['parameter', 'value', 'unit']));
     out.push(line(['tunnels', s.count, '-']));
+    if (s.count === 2) out.push(line(['tunnel_spacing_c', s.c, 'm']));
     r.tunnels.forEach((t, j) => {
         const n = j + 1;
-        out.push(line([`tunnel_${n}_x`, t.x, 'm']));
+        // derived: 0 or ±c/2, x measured from the axis or the midpoint
+        out.push(line([`tunnel_${n}_x_derived`, t.x, 'm']));
         out.push(line([`tunnel_${n}_H`, t.H, 'm']));
         out.push(line([`tunnel_${n}_D`, t.D, 'm']));
         out.push(line([`tunnel_${n}_VL`, t.VL, '-']));

@@ -35,7 +35,7 @@ export function createTroughPlot(B, xRange, th) {
     p.add_layout(new B.LinearAxis({ y_range_name: 'depth', axis_label: 'Depth [m]' }), 'right');
 
     const curves = new B.ColumnDataSource({ data: { x: [], S: [], Sabs: [], S1: [], S2: [], Sh: [], eh: [], n: [] } });
-    const tunnels = new B.ColumnDataSource({ data: { x: [], y: [], d: [] } });
+    const tunnels = new B.ColumnDataSource({ data: { x: [], y: [], r: [] } });
     const inflections = new B.ColumnDataSource({ data: { x: [], y: [] } });
 
     const axisX = new B.Span({ location: 0, dimension: 'height', line_width: 1 });
@@ -52,10 +52,11 @@ export function createTroughPlot(B, xRange, th) {
     const rT2 = p.line({ field: 'x' }, { field: 'S2' }, { source: curves, line_width: 1.5, line_dash: [4, 3] });
     const rS = p.line({ field: 'x' }, { field: 'S' }, { source: curves, line_width: 2.5 });
     const rSh = p.line({ field: 'x' }, { field: 'Sh' }, { source: curves, line_width: 2 });
-    // tunnel as ellipse with width D in x units and height D in depth
-    // units: a circle of diameter D in the coordinates of the axes
-    const rC = p.ellipse({ x: { field: 'x' }, y: { field: 'y' }, width: { field: 'd' }, height: { field: 'd' },
-                           source: tunnels, y_range_name: 'depth', fill_alpha: 0.35, line_width: 1.5 });
+    // tunnel as a circle with the radius D/2 measured on the x axis, as in
+    // the earlier app: round on the screen, crown and invert only
+    // approximately at their depth (the depth range keeps it inside)
+    const rC = p.circle({ x: { field: 'x' }, y: { field: 'y' }, radius: { field: 'r' }, radius_dimension: 'x',
+                          source: tunnels, y_range_name: 'depth', fill_alpha: 0.35, line_width: 1.5 });
     const rI = p.scatter({ x: { field: 'x' }, y: { field: 'y' }, source: inflections, size: 8, marker: 'circle',
                            line_width: 1.5 });
 
@@ -127,7 +128,7 @@ export function createTroughPlot(B, xRange, th) {
         tunnels.data = {
             x: r.tunnels.map((u) => u.x),
             y: r.tunnels.map((u) => -u.H),
-            d: r.tunnels.map((u) => u.D),
+            r: r.tunnels.map((u) => u.D / 2),
         };
         inflections.data = {
             x: r.inflections.map((q) => q.x),
@@ -152,9 +153,36 @@ export function createTroughPlot(B, xRange, th) {
         level = r.building.category.level;
         governingColour();
 
-        const { y, depth } = troughRanges(r);
+        last = r;
+        fitRanges(true);
+    }
+
+    /** @type {Result | null} */
+    let last = null;
+    /** @type {number[]} y and depth range as set by fitRanges() */
+    let fitted = [];
+
+    /**
+     * y ranges from the data and the size of the plot frame (the circles
+     * depend on it). force = false (after a change of the frame size):
+     * only if the user has not zoomed or panned since the last fit.
+     * @param {boolean} force
+     */
+    function fitRanges(force) {
+        if (!last) return;
+        const now = [yRange.start, yRange.end, depthRange.start, depthRange.end];
+        if (!force && now.some((v, k) => v !== fitted[k])) return;
+        const width = p.inner_width > 0 ? p.inner_width : 800;
+        const height = p.inner_height > 0 ? p.inner_height : 330;
+        const { y, depth } = troughRanges(last, { width, height, xSpan: p.x_range.end - p.x_range.start });
+        const next = [y[0], y[1], depth[0], depth[1]];
+        // a change of less than 0.1 % does not change the picture; this
+        // also ends the loop axis width -> frame width -> ranges
+        const span = (y[1] - y[0]) || 1;
+        if (!force && next.every((v, k) => Math.abs(v - fitted[k]) <= 1e-3 * (k < 2 ? span : depth[1] - depth[0]))) return;
         yRange.setv({ start: y[0], end: y[1], reset_start: y[0], reset_end: y[1] });
         depthRange.setv({ start: depth[0], end: depth[1], reset_start: depth[0], reset_end: depth[1] });
+        fitted = [yRange.start, yRange.end, depthRange.start, depthRange.end];
     }
 
     /**
@@ -166,5 +194,5 @@ export function createTroughPlot(B, xRange, th) {
         legend.ncols = narrow ? 1 : 5;
     }
 
-    return { plot: p, update, setTheme, setNarrow, yRange, depthRange };
+    return { plot: p, update, setTheme, setNarrow, refit: () => fitRanges(false), yRange, depthRange, circles: rC };
 }

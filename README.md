@@ -18,8 +18,10 @@ Author: Onur Koc – more apps: <https://apps.onurkoc.net/>
 
 ## Scope
 
-- One or two tunnels, each with its own axis position x, axis depth H,
-  equivalent diameter D, volume loss VL and trough width factor K.
+- One tunnel at x = 0 or two tunnels at x = −c/2 and +c/2 (spacing
+  c), each with its own axis depth H, equivalent diameter D, volume
+  loss VL and trough width factor K. The tunnels are fixed, only the
+  building moves (as in the earlier apps).
 - Building of width L, given by its centre or by its left/right edge.
 - Settlement trough, horizontal displacement, slope 1/n, horizontal
   strain; inflection points.
@@ -29,7 +31,8 @@ Author: Onur Koc – more apps: <https://apps.onurkoc.net/>
   of width b; floors tied / grade beam.
 - First-stage screening (Mair et al. 1996; limits after Rankin 1988).
 - CSV export (inputs, results, trough, fields), PNG export of the
-  plots, the case in the URL (link to share).
+  plots, the case in the URL (link to share), colour scheme System /
+  Light / Dark (kept in the browser).
 
 | Two tunnels | Fields b = 5 m | Phone | Dark mode |
 | --- | --- | --- | --- |
@@ -44,7 +47,9 @@ code is in `app/core/`.
 
 Gaussian trough above each tunnel j (Peck 1969; O'Reilly & New 1982),
 the troughs of two tunnels superposed. Greenfield, at the ground
-surface; settlement S positive downwards, x to the right.
+surface; settlement S positive downwards. x is measured from the tunnel
+axis (1 tunnel) or from the midpoint between the axes (2 tunnels),
+positive to the right: x_1 = 0, or x_1,2 = ∓c/2.
 
 ```text
 i_j      = K_j · H_j
@@ -113,6 +118,11 @@ the category.
 
 - Greenfield movements, no interaction between ground and building; the
   building follows the trough.
+- Two tunnels: the troughs are superposed independently; interaction
+  between closely spaced tunnels (narrow pillar) is not considered. The
+  spacing must be at least (D1 + D2)/2.
+- The tunnel is drawn as a circle in screen units; crown and invert are
+  approximate on the depth axis.
 - Tilt = slope of the chord over the whole building (beam assumption,
   Cording et al. 2010, Fig. 5b). If the distortion concentrates in one
   bay and the rest of the building only tilts (Fig. 5a), the real tilt
@@ -210,8 +220,8 @@ Not yet done: an independent check by the author with other programs
   Aspects of Underground Construction in Soft Ground, 713–718. Balkema,
   Rotterdam.
 - O'Reilly, M.P., New, B.M. (1982): Settlements above tunnels in the
-  United Kingdom – their magnitude and prediction. Tunnelling 82, 55–64.
-  The Institution of Mining and Metallurgy, London.
+  United Kingdom – their magnitude and prediction. Tunnelling '82, The
+  Institution of Mining and Metallurgy, London.
 - Peck, R.B. (1969): Deep excavations and tunneling in soft ground.
   Proc. of the 7th Int. Conference on Soil Mechanics and Foundation
   Engineering, State of the art volume, 225–290. Sociedad Mexicana de

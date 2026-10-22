@@ -6,14 +6,21 @@ al. 2010, Fig. 2 and 3), damage categories, limit curves, and the
 limit parabolas of the legacy apps (Boscardin & Cording 1989) for an
 optional comparison.
 
-Sources
-- Cording, E.J., Long, J.L., Son, M., Laefer, D., Ghahreman, B. (2010):
-  Assessment of excavation-induced building damage. Earth Retention
-  Conference 3, ASCE, doi:10.1061/41128(384)7.
-- Franzius, J.N. (2003): Behaviour of buildings due to tunnel induced
-  subsidence. PhD thesis, Imperial College London. Tab. 2.2, 2.3.
+Sources (as in README and the tab Information)
 - Boscardin, M.D., Cording, E.J. (1989): Building response to
-  excavation-induced settlement. J. Geotech. Eng. 115(1), 1-21.
+  excavation-induced settlement. Journal of Geotechnical Engineering,
+  ASCE, 115(1), 1–21.
+- Burland, J.B. (1995): Assessment of risk of damage to buildings due to
+  tunnelling and excavation. Invited special lecture. 1st Int. Conf. on
+  Earthquake Geotechnical Engineering, IS-Tokyo '95.
+- Cording, E.J., Long, J.L., Son, M., Laefer, D., Ghahreman, B. (2010):
+  Assessment of excavation-induced building damage. In: Arduino, P.,
+  Hashash, Y., Finno, R. (eds.), Earth Retention Conference 3,
+  Proceedings of the 2010 Earth Retention Conference, Bellevue,
+  Washington. ASCE. doi:10.1061/41128(384)7.
+- Franzius, J.N. (2003): Behaviour of buildings due to tunnel induced
+  subsidence. PhD thesis, University of London (Imperial College of
+  Science, Technology and Medicine). Tab. 2.2, 2.3.
 */
 
 /**

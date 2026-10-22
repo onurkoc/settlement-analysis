@@ -45,7 +45,7 @@ const cdpPort = await freePort();
 const profile = mkdtempSync(join(tmpdir(), 'settlement-edge-'));
 const server = spawn(PYTHON, [join(ROOT, 'serve.py'), '--no-browser', '--port', String(appPort)], { stdio: 'ignore' });
 const edge = spawn(EDGE, ['--headless=new', `--remote-debugging-port=${cdpPort}`, `--user-data-dir=${profile}`,
-    '--no-first-run', '--disable-gpu', '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+    '--no-first-run', '--disable-gpu', '--hide-scrollbars', '--disable-extensions', 'about:blank'], { stdio: 'ignore' });
 const ORIGIN = `http://127.0.0.1:${appPort}`;
 
 let ws;
@@ -174,6 +174,36 @@ try {
         const a = lum(cs.color), b = lum(cs.backgroundColor);
         return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 100) / 100;
     })()`;
+    // tunnel circles: round on the screen (width = height) and inside the frame
+    const CIRCLES = `(async () => {
+        const st = await import('./state.js');
+        const out = [];
+        for (const H of [5, 30, 60]) {
+            for (const D of [2, 10, 20]) {
+                for (const n of [1, 2]) {
+                    let s = st.defaultState();
+                    s.tunnels[0] = { H, D, VL: 1, K: 0.35 };
+                    if (n === 2) { s = st.switchTunnels(s, 2); s.c = Math.max(13.5, D); }
+                    window.app.set(s);
+                    await new Promise((r) => setTimeout(r, 120));
+                    const d = window.app.plots.debug;
+                    const v = d.views.get_one(d.trough.plot);
+                    const g = v.renderer_views.get(d.trough.circles).glyph;
+                    const f = v.frame.bbox;
+                    const xs = v.frame.x_scale;
+                    for (let j = 0; j < n; j++) {
+                        const t = window.app.result.tunnels[j];
+                        const w = Math.abs(xs.compute(t.x + t.D / 2) - xs.compute(t.x - t.D / 2));
+                        const h = 2 * g.sradius[j];
+                        const inside = g.sy[j] - g.sradius[j] >= f.top - 0.5 && g.sy[j] + g.sradius[j] <= f.bottom + 0.5
+                            && g.sx[j] - g.sradius[j] >= f.left - 0.5 && g.sx[j] + g.sradius[j] <= f.right + 0.5;
+                        if (Math.abs(w - h) > 1 || !inside) out.push({ H, D, n, j, w, h, inside });
+                    }
+                }
+            }
+        }
+        return out;
+    })()`;
     const setHash = async (hash) => {
         await evaluate(`location.hash = ${JSON.stringify(hash)}`);
         await settle();
@@ -198,7 +228,8 @@ try {
     check('each plot in its own element', await evaluate(`['plot-building', 'plot-trough', 'plot-damage'].every((id) => document.getElementById(id).querySelectorAll(':scope > .bk-Figure').length === 1)`),
           await evaluate(`['plot-building', 'plot-trough', 'plot-damage'].map((id) => [...document.getElementById(id).children].map((c) => c.tagName + '.' + c.className))`));
     check('hash written for the default',
-          (await evaluate('location.hash')) === '#n=1&t1=0,30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
+          (await evaluate('location.hash')) === '#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
+    check('no input for the tunnel axis position', await evaluate(`!document.getElementById('in-tunnels-0-x') && document.getElementById('in-c').closest('.field').hidden`));
     let panel = await evaluate(PANEL_CHECK);
     check('panel = assessBuilding(), 1 tunnel', panel.diffs.length === 0 && panel.same,
           { diffs: panel.diffs, rows: panel.rows, cat: panel.cat, epsP: panel.gov.epsP });
@@ -263,10 +294,20 @@ try {
     await checkAlign('after wheel zoom, box zoom and pan');
 
     // ---- two tunnels through the form ---------------------------------
-    await setHash('#n=1&t1=0,30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
+    await setHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
     await evaluate(`document.querySelector('input[name="count"][value="2"]').click()`);
     await settle();
-    check('switch to 2 tunnels: ±6.75 m', JSON.stringify(await evaluate('window.app.state.tunnels.map((t) => t.x)')) === '[-6.75,6.75]');
+    check('switch to 2 tunnels: c = 13.5 m, axes at ±6.75 m', JSON.stringify(await evaluate('[window.app.state.c, ...window.app.result.tunnels.map((t) => t.x)]')) === '[13.5,-6.75,6.75]');
+    // spacing: c < (D1 + D2)/2 is marked and not calculated
+    const epsBefore = await evaluate('window.app.result.building.governing.epsP');
+    await evaluate(`(() => { const e = document.getElementById('in-c'); e.focus(); e.value = '9'; e.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await settle();
+    check('c = 9 m < (D1 + D2)/2 = 10 m: marked, not calculated',
+          (await evaluate(`document.getElementById('in-c').closest('.field').classList.contains('invalid') && !document.getElementById('msg').hidden`)) &&
+          (await evaluate('window.app.result.building.governing.epsP')) === epsBefore,
+          await evaluate(`document.getElementById('in-c').closest('.field').querySelector('.err').textContent`));
+    await evaluate(`(() => { const e = document.getElementById('in-c'); e.value = '13.5'; e.dispatchEvent(new Event('input', { bubbles: true })); e.blur(); })()`);
+    await settle();
     panel = await evaluate(PANEL_CHECK);
     check('panel = assessBuilding(), 2 tunnels', panel.diffs.length === 0 && panel.same,
           { diffs: panel.diffs, cat: panel.cat, epsP: panel.gov.epsP });
@@ -296,8 +337,11 @@ try {
     check('"0,4" typed: K = 0.4, shown as 0.4', (await evaluate('window.app.state.tunnels[0].K')) === 0.4 &&
           (await evaluate(`document.getElementById('in-tunnels-0-K').value`)) === '0.4');
 
+    let bad = await evaluate(CIRCLES);
+    check('tunnel circles round and inside the frame, H = 5/30/60, D = 2/10/20, 1 and 2 tunnels (desktop)', bad.length === 0, bad);
+
     // ---- fields b = 5 m, one tunnel --------------------------------------
-    await setHash('#n=1&t1=0,30,10,1,0.35&bm=c&b=0,20&fw=5&fl=1&dx=0.1');
+    await setHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=5&fl=1&dx=0.1');
     check('field mode from the hash', (await evaluate(`document.querySelector('tr[data-key="mode"] td.value').textContent`)) ===
           'Fields, b_eff = 5.00 m, n = 4');
     panel = await evaluate(PANEL_CHECK);
@@ -324,12 +368,18 @@ try {
     check('valid again', await evaluate(`document.getElementById('msg').hidden`));
 
     // ---- hash: reload restores the state ---------------------------------
-    const hash = '#n=2&t1=-7,28,9.5,1.2,0.4&t2=8,33,10,0.8,0.5&bm=e&b=-4,21&fw=3&tied=1&dx=0.05';
+    const hash = '#n=2&c=15&t1=28,9.5,1.2,0.4&t2=33,10,0.8,0.5&bm=e&b=-4,21&fw=3&tied=1&dx=0.05';
     await send('Page.navigate', { url: `${ORIGIN}/${hash}` });
     for (let i = 0; i < 100 && !(await evaluate('Boolean(window.app && window.app.result)')); i++) await sleep(100);
     await settle();
     check('state from a shared link', (await evaluate('location.hash')) === hash &&
           (await evaluate('window.app.state.tunnels[1].H')) === 33 && (await evaluate('window.app.state.floorsTied')));
+    // an older link with x per tunnel: x ignored, c = |x2 - x1|, hash rewritten
+    await send('Page.navigate', { url: `${ORIGIN}/#n=2&t1=-7,28,9.5,1.2,0.4&t2=8,33,10,0.8,0.5&bm=e&b=-4,21&fw=3&tied=1&dx=0.05` });
+    for (let i = 0; i < 100 && !(await evaluate('Boolean(window.app && window.app.result)')); i++) await sleep(100);
+    await settle();
+    check('older link with x: c = 15 m, written in the new form', (await evaluate('location.hash')) === hash,
+          await evaluate('location.hash'));
     panel = await evaluate(PANEL_CHECK);
     check('panel = assessBuilding() for the shared link', panel.diffs.length === 0 && panel.same, panel.diffs);
 
@@ -344,6 +394,10 @@ try {
           await evaluate('[document.documentElement.scrollWidth, innerWidth]'));
     check('phone: zero aligned', (await evaluate(ZERO)).ok);
     await checkAlign('phone');
+    bad = await evaluate(CIRCLES);
+    check('tunnel circles round and inside the frame (phone)', bad.length === 0, bad);
+    await setHash('#n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1');
+    await sleep(300);
     await shot('phone_1tunnel', 390, 844, true);
     await evaluate(`document.querySelector('#inputs > summary').click()`);
     await settle();
@@ -399,8 +453,62 @@ try {
           png.after === (await evaluate(`getComputedStyle(document.documentElement).getPropertyValue('--surface').trim()`)), png);
     await shot('desktop_dark', 1366, 900, false);
 
+    // ---- colour scheme switch: System / Light / Dark on a light and a dark system
+    const THEME = `(async () => {
+        const root = document.documentElement;
+        const surface = getComputedStyle(root).getPropertyValue('--surface').trim();
+        const d = window.app.plots.debug;
+        const blob = await d.pngBlob('damage');
+        const img = await createImageBitmap(blob);
+        const c = new OffscreenCanvas(img.width, img.height);
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0);
+        const px = Array.from(g.getImageData(3, 3, 1, 1).data);
+        const checked = document.querySelector('#theme-switch input:checked');
+        return { attr: root.getAttribute('data-theme'), surface, plot: d.trough.plot.background_fill_color,
+                 damage: d.damage.plot.background_fill_color, png: px, checked: checked && checked.value };
+    })()`;
+    for (const system of ['light', 'dark']) {
+        await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: system }] });
+        for (const choice of ['system', 'light', 'dark']) {
+            await evaluate(`document.querySelector('#theme-switch input[value="${choice}"]').click()`);
+            await settle();
+            const t = await evaluate(THEME);
+            const dark = choice === 'dark' || (choice === 'system' && system === 'dark');
+            const contrast = await evaluate(CONTRAST);
+            check(`theme ${choice} on a ${system} system`,
+                  t.surface === (dark ? '#1d1c1a' : '#ffffff') && t.plot === t.surface && t.damage === t.surface &&
+                  t.attr === (choice === 'system' ? null : choice) && t.checked === choice &&
+                  contrast >= 4.5 && t.png[0] > 240 && t.png[1] > 240 && t.png[2] > 240,
+                  { ...t, contrast });
+            if (system === 'dark' && choice === 'light') {
+                await shot('desktop_theme_light_on_dark_system', 1366, 900, false);
+            }
+        }
+    }
+    // keyboard: arrow keys move within the radio group
+    await evaluate(`document.querySelector('#theme-switch input[value="system"]').focus()`);
+    await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
+    await settle();
+    check('theme switch with the keyboard (arrow key)', (await evaluate('document.documentElement.getAttribute("data-theme")')) === 'light');
+    // the choice is kept after a reload, and set before the page is drawn
+    await evaluate(`document.querySelector('#theme-switch input[value="dark"]').click()`);
+    await settle();
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
+    await send('Page.navigate', { url: `${ORIGIN}/` });
+    for (let i = 0; i < 100 && !(await evaluate('Boolean(window.app && window.app.result)')); i++) await sleep(100);
+    await settle();
+    check('theme kept after reload (localStorage), not in the URL',
+          (await evaluate('document.documentElement.getAttribute("data-theme")')) === 'dark' &&
+          (await evaluate(`document.querySelector('#theme-switch input:checked').value`)) === 'dark' &&
+          !(await evaluate('location.hash')).includes('theme'));
+    await evaluate(`document.querySelector('#theme-switch input[value="system"]').click()`);
+    await settle();
+
     // ---- console and requests ------------------------------------------------
-    const foreign = requests.filter((u) => !u.startsWith(ORIGIN) && !u.startsWith('data:') && !u.startsWith('blob:'));
+    const foreign = requests.filter((u) => !u.startsWith(ORIGIN) && !u.startsWith('data:') && !u.startsWith('blob:')
+        && !u.startsWith('chrome-extension:'));   // add-ons of the browser, not the page
     check('no requests to other hosts', foreign.length === 0, foreign);
     const fonts = requests.filter((u) => u.includes('/katex-0.19.0/fonts/'));
     check('KaTeX fonts: only .woff2 requested', fonts.length > 0 && fonts.every((u) => u.endsWith('.woff2')), fonts.length);

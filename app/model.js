@@ -6,7 +6,7 @@ calls app/core/, no DOM.
 import { tunnelAt, inflection, symmetricGrid } from './core/trough.js';
 import { assessBuilding } from './core/building.js';
 import { percentToFraction, formatMm, formatE3, formatSlopeN, slopeToN } from './core/units.js';
-import { plotHalfWidth } from './state.js';
+import { plotHalfWidth, axisPositions } from './state.js';
 
 /** @typedef {import('./state.js').State} State */
 /** @typedef {import('./core/trough.js').Tunnel} Tunnel */
@@ -38,12 +38,14 @@ import { plotHalfWidth } from './state.js';
  */
 
 /**
- * Tunnels in SI units (VL as fraction) for app/core/.
+ * Tunnels in SI units (VL as fraction) for app/core/, with the fixed
+ * axis positions x = 0 or ±c/2.
  * @param {State} s
  * @returns {Tunnel[]}
  */
 export function coreTunnels(s) {
-    return s.tunnels.slice(0, s.count).map((t) => ({ ...t, VL: percentToFraction(t.VL) }));
+    const xs = axisPositions(s);
+    return s.tunnels.slice(0, s.count).map((t, j) => ({ x: xs[j], ...t, VL: percentToFraction(t.VL) }));
 }
 
 /**

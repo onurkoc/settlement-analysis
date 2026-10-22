@@ -6,11 +6,15 @@ URL hash. No DOM.
 The state holds the values as typed (display units: VL in %); a value
 that cannot be read is NaN and fails the validation. app/model.js
 converts the state to the SI input of app/core/.
+
+The tunnel axes are fixed as in the earlier apps: one tunnel at x = 0,
+two tunnels at x = −c/2 and +c/2 (c: spacing of the axes); x is
+measured from the tunnel axis or from the midpoint between the axes.
+Only the building moves.
 */
 
 /**
  * @typedef {Object} TunnelInput
- * @property {number} x  axis position [m]
  * @property {number} H  axis depth [m]
  * @property {number} D  equivalent diameter [m]
  * @property {number} VL  volume loss [%]
@@ -22,6 +26,7 @@ converts the state to the SI input of app/core/.
  * @property {1 | 2} count  number of tunnels
  * @property {TunnelInput[]} tunnels  always two entries; the second is
  *     used only if count = 2
+ * @property {number} c  spacing of the two tunnel axes [m]
  * @property {'centre' | 'edges'} buildingMode
  * @property {number} center  [m]
  * @property {number} L  width [m]
@@ -37,7 +42,7 @@ converts the state to the SI input of app/core/.
 
 /**
  * @typedef {Object} FieldSpec
- * @property {string} path  'tunnels.0.x', 'center', ...
+ * @property {string} path  'tunnels.0.H', 'center', ...
  * @property {string} label
  * @property {string} unit
  * @property {number} min  slider range
@@ -46,10 +51,10 @@ converts the state to the SI input of app/core/.
  * @property {(v: number, s: State) => string | null} check  error text or null
  */
 
-export const DEFAULT_TUNNEL = Object.freeze({ x: 0, H: 30, D: 10, VL: 1.0, K: 0.35 });
+export const DEFAULT_TUNNEL = Object.freeze({ H: 30, D: 10, VL: 1.0, K: 0.35 });
 
-/** Axis distance when switching to two tunnels [m]. */
-export const TWO_TUNNEL_DISTANCE = 13.5;
+/** Spacing of the axes when switching to two tunnels [m], as in the earlier app. */
+export const DEFAULT_SPACING = 13.5;
 
 /** Limits of the number of points, against a frozen browser. */
 export const MAX_GRID_POINTS = 200001;
@@ -59,7 +64,8 @@ export const MAX_FIELDS = 100000;
 export function defaultState() {
     return {
         count: 1,
-        tunnels: [{ ...DEFAULT_TUNNEL }, { ...DEFAULT_TUNNEL, x: TWO_TUNNEL_DISTANCE / 2 }],
+        tunnels: [{ ...DEFAULT_TUNNEL }, { ...DEFAULT_TUNNEL }],
+        c: DEFAULT_SPACING,
         buildingMode: 'centre',
         center: 0,
         L: 20,
@@ -98,13 +104,30 @@ const nonNegative = (v) => (Number.isFinite(v) && v >= 0 ? null : 'Must be ≥ 0
 export function tunnelFields(j) {
     const p = `tunnels.${j}.`;
     return [
-        { path: p + 'x', label: 'Axis position x', unit: 'm', min: -50, max: 50, step: 0.25, check: finite },
         { path: p + 'H', label: 'Axis depth H', unit: 'm', min: 5, max: 60, step: 0.5, check: positive },
         { path: p + 'D', label: 'Equivalent diameter D', unit: 'm', min: 2, max: 20, step: 0.1, check: positive },
         { path: p + 'VL', label: 'Volume loss VL', unit: '%', min: 0.1, max: 3, step: 0.05, check: nonNegative },
         { path: p + 'K', label: 'Trough width factor K', unit: '-', min: 0.2, max: 0.9, step: 0.01, check: positive },
     ];
 }
+
+/**
+ * Spacing of the axes of two tunnels: > 0 and at least (D1 + D2)/2, so
+ * the tunnels do not overlap.
+ * @type {FieldSpec}
+ */
+export const SPACING_FIELD = {
+    path: 'c', label: 'Tunnel spacing c', unit: 'm', min: 5, max: 50, step: 0.5,
+    check: (v, s) => {
+        const msg = positive(v);
+        if (msg) return msg;
+        const [d1, d2] = [s.tunnels[0].D, s.tunnels[1].D];
+        if (Number.isFinite(d1) && Number.isFinite(d2) && v < (d1 + d2) / 2) {
+            return `Must be ≥ (D1 + D2)/2 = ${Number(((d1 + d2) / 2).toFixed(3))} m`;
+        }
+        return null;
+    },
+};
 
 /** @type {FieldSpec[]} */
 export const BUILDING_CENTRE_FIELDS = [
@@ -160,7 +183,7 @@ export function setPath(s, path, value) {
  */
 export function activeFields(s) {
     const fields = [...tunnelFields(0)];
-    if (s.count === 2) fields.push(...tunnelFields(1));
+    if (s.count === 2) fields.push(SPACING_FIELD, ...tunnelFields(1));
     fields.push(...(s.buildingMode === 'centre' ? BUILDING_CENTRE_FIELDS : BUILDING_EDGE_FIELDS));
     if (s.fieldMode === 'width') fields.push(FIELD_WIDTH_FIELD);
     if (!s.floorsTied) fields.push(FL_FIELD);
@@ -180,14 +203,25 @@ export function edgesOf(s) {
 }
 
 /**
+ * Axis positions of the tunnels [m]: 0, or −c/2 and +c/2.
+ * @param {State} s
+ * @returns {number[]}
+ */
+export function axisPositions(s) {
+    return s.count === 2 ? [-s.c / 2, s.c / 2] : [0];
+}
+
+/**
  * Half width of the plotted x range [m]: ±(max|x_j| + 3·max i_j) as in
- * app/core/trough.js, widened so that the building lies inside with a
- * margin of 5 % of its width (at least 1 m).
+ * app/core/trough.js, widened so that the tunnel circles (0.6·D) and the
+ * building lie inside, the building with a margin of 5 % of its width
+ * (at least 1 m).
  * @param {State} s
  */
 export function plotHalfWidth(s) {
     const tunnels = s.tunnels.slice(0, s.count);
-    let R = Math.max(...tunnels.map((t) => Math.abs(t.x))) + 3 * Math.max(...tunnels.map((t) => t.K * t.H));
+    const R = Math.max(...axisPositions(s).map(Math.abs))
+        + Math.max(...tunnels.map((t) => Math.max(3 * t.K * t.H, 0.6 * t.D)));
     const { xL, xR } = edgesOf(s);
     const margin = Math.max(1, 0.05 * (xR - xL));
     return Math.max(R, Math.abs(xL) + margin, Math.abs(xR) + margin);
@@ -221,9 +255,9 @@ export function validate(s) {
 }
 
 /**
- * Switch the number of tunnels. 1 -> 2: tunnel 1 at −6.75 m, tunnel 2 at
- * +6.75 m, the other values of tunnel 2 copied from tunnel 1. 2 -> 1:
- * tunnel 1 keeps H, D, VL, K and moves to x = 0.
+ * Switch the number of tunnels. 1 -> 2: spacing c = 13.5 m, tunnel 2
+ * takes H, D, VL, K of tunnel 1. 2 -> 1: tunnel 1 keeps its values (the
+ * axes are at fixed positions, see axisPositions()).
  * @param {State} s
  * @param {1 | 2} count
  * @returns {State}
@@ -231,11 +265,8 @@ export function validate(s) {
 export function switchTunnels(s, count) {
     const next = cloneState(s);
     if (count === 2 && s.count === 1) {
-        const t = next.tunnels[0];
-        next.tunnels[0] = { ...t, x: -TWO_TUNNEL_DISTANCE / 2 };
-        next.tunnels[1] = { ...t, x: TWO_TUNNEL_DISTANCE / 2 };
-    } else if (count === 1 && s.count === 2) {
-        next.tunnels[0] = { ...next.tunnels[0], x: 0 };
+        next.c = DEFAULT_SPACING;
+        next.tunnels[1] = { ...next.tunnels[0] };
     }
     next.count = count;
     return next;
@@ -294,15 +325,18 @@ function parseNum(text) {
 }
 
 /**
- * State as URL hash (without '#').
- * Example: n=1&t1=0,30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1
+ * State as URL hash (without '#'). A tunnel is written as H,D,VL,K.
+ * Examples: n=1&t1=30,10,1,0.35&bm=c&b=0,20&fw=p&fl=1&dx=0.1
+ *           n=2&c=13.5&t1=30,10,1,0.35&t2=30,10,1,0.35&...
  * @param {State} s
  * @returns {string}
  */
 export function encodeHash(s) {
     /** @param {TunnelInput} t */
-    const tunnel = (t) => [t.x, t.H, t.D, t.VL, t.K].map(num).join(',');
-    const parts = [`n=${s.count}`, `t1=${tunnel(s.tunnels[0])}`];
+    const tunnel = (t) => [t.H, t.D, t.VL, t.K].map(num).join(',');
+    const parts = [`n=${s.count}`];
+    if (s.count === 2) parts.push(`c=${num(s.c)}`);
+    parts.push(`t1=${tunnel(s.tunnels[0])}`);
     if (s.count === 2) parts.push(`t2=${tunnel(s.tunnels[1])}`);
     parts.push(s.buildingMode === 'centre'
         ? `bm=c&b=${num(s.center)},${num(s.L)}`
@@ -317,6 +351,8 @@ export function encodeHash(s) {
 /**
  * State from a URL hash (with or without '#'). Missing keys keep the
  * default; numbers that cannot be read become NaN (shown as invalid).
+ * Older links wrote a tunnel as x,H,D,VL,K: x is ignored; with two
+ * tunnels and without c, c = |x2 − x1|.
  * @param {string} hash
  * @returns {State}
  */
@@ -324,24 +360,33 @@ export function decodeHash(hash) {
     const s = defaultState();
     const q = new URLSearchParams(hash.replace(/^#/, ''));
     if (q.get('n') === '2') s.count = 2;
-    /** @param {string | null} text @param {TunnelInput} t */
+    /**
+     * @param {string | null} text
+     * @param {TunnelInput} t
+     * @returns {number}  x of an older link, otherwise NaN
+     */
     const tunnel = (text, t) => {
-        if (text === null) return;
+        if (text === null) return NaN;
         const v = text.split(',');
-        t.x = parseNum(v[0]);
-        t.H = parseNum(v[1]);
-        t.D = parseNum(v[2]);
-        t.VL = parseNum(v[3]);
-        t.K = parseNum(v[4]);
+        const x = v.length >= 5 ? parseNum(v.shift()) : NaN;
+        t.H = parseNum(v[0]);
+        t.D = parseNum(v[1]);
+        t.VL = parseNum(v[2]);
+        t.K = parseNum(v[3]);
+        return x;
     };
-    tunnel(q.get('t1'), s.tunnels[0]);
+    const x1 = tunnel(q.get('t1'), s.tunnels[0]);
     if (s.count === 2) {
         if (q.get('t2') === null) {
             // as when switching from one to two tunnels
-            s.tunnels = switchTunnels({ ...s, count: 1 }, 2).tunnels;
+            s.tunnels[1] = { ...s.tunnels[0] };
         } else {
-            tunnel(q.get('t2'), s.tunnels[1]);
+            const x2 = tunnel(q.get('t2'), s.tunnels[1]);
+            if (q.get('c') === null && Number.isFinite(x1) && Number.isFinite(x2)) {
+                s.c = Math.abs(x2 - x1);
+            }
         }
+        if (q.get('c') !== null) s.c = parseNum(/** @type {string} */ (q.get('c')));
     }
     const b = q.get('b');
     if (q.get('bm') === 'e') {

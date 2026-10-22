@@ -6,18 +6,17 @@ Repo liegt. Es gibt keinen Build-Schritt und keinen Server.
 | | |
 | --- | --- |
 | Hosting | Cloudflare Pages, eigenes Projekt nur für diese App |
-| Projektname | `settlement` |
+| Projektname | `settlement-analysis` |
 | Repo | `github.com/onurkoc/settlement-analysis` |
-| Produktions-Branch | `main` |
-| Vorschau-Branch | `dev` |
+| Produktions-Branch | vorerst `dev`, nach dem ersten Merge `main` |
+| Vorschau-Branch | nach dem ersten Merge `dev` |
 | Build-Befehl | keiner |
 | Ausgabeordner | `app` |
 | Adresse (Ziel) | `https://settlement.onurkoc.net/` |
-| Vorschau | `https://dev.<projekt>.pages.dev/` |
+| pages.dev-Adresse | `https://settlement-analysis-6w8.pages.dev/` |
 
-`<projekt>` ist die pages.dev-Adresse des Projekts, normalerweise
-`settlement`. Ist der Name vergeben, hängt Cloudflare etwas an; die
-genaue Adresse steht im Dashboard beim Deployment.
+Cloudflare hat dem Projektnamen `-6w8` angehängt; `<projekt>` steht
+unten für `settlement-analysis-6w8`.
 
 Die App liegt im Stamm der Subdomain, nicht in einem Unterpfad. Alle
 Pfade in `app/` sind relativ, die App läuft deshalb auch unter jeder
@@ -26,21 +25,33 @@ Vorschau-Adresse.
 `apps.onurkoc.net` ist eine separate Startseite in einem eigenen Repo
 (`onurkoc/apps-landing`) und gehört nicht zu diesem Projekt.
 
+## Stand
+
+- Repo `onurkoc/settlement-analysis` angelegt, Branch `dev` gepusht.
+  `main` gibt es noch nicht.
+- Pages-Projekt `settlement-analysis` angelegt, Adresse
+  `https://settlement-analysis-6w8.pages.dev/`. Weil `main` noch nicht
+  existiert, ist vorerst **`dev` als Production branch** eingestellt,
+  Build-Ausgabeordner `app`, kein Build-Befehl.
+- Eigene Domain: noch keine (erst nach dem Merge).
+
 ## Reihenfolge
 
-1. Repo `onurkoc/settlement-analysis` auf GitHub anlegen (public, leer)
-   und den Branch `dev` pushen. `main` entsteht erst beim ersten Merge.
-2. Pages-Projekt anlegen (Abschnitt 1), Vorschau-Branch einstellen
-   (Abschnitt 2).
-3. Vorschau prüfen (Prüfliste unten).
-4. Pull Request `dev` nach `main`, Merge durch Onur.
-5. Eigene Domain `settlement.onurkoc.net` eintragen (Abschnitt 3) und
-   den Hostnamen in die Cache-Regel der Zone aufnehmen (Abschnitt 4).
+1. Vorschau auf `settlement-analysis-6w8.pages.dev` prüfen (Prüfliste
+   unten).
+2. Pull Request `dev` nach `main`, Merge durch Onur.
+3. Nach dem Merge im Pages-Projekt: **Settings → Builds → Branch
+   control**: Production branch = `main`, Preview branch = «Custom»,
+   Include `dev` (Abschnitt 2).
+4. Auf GitHub den Standard-Branch auf `main` umstellen (Settings →
+   General → Default branch).
+5. Eigene Domain `settlement.onurkoc.net` eintragen (Abschnitt 3).
+6. Cache-Regel der Zone ergänzen (Abschnitt 4).
 
 Die eigene Domain zeigt immer auf den Produktions-Branch. Sie wird
 deshalb erst eingetragen, wenn `main` die App enthält.
 
-## 1 Projekt anlegen (Cloudflare-Dashboard)
+## 1 Projekt anlegen (Cloudflare-Dashboard, erledigt)
 
 1. **Workers & Pages** öffnen, neues **Pages**-Projekt anlegen, Variante
    «mit Git verbinden» (Connect to Git).
@@ -50,8 +61,8 @@ deshalb erst eingetragen, wenn `main` die App enthält.
 
    | Feld | Wert |
    | --- | --- |
-   | Projektname | `settlement` |
-   | Produktions-Branch | `main` |
+   | Projektname | `settlement-analysis` |
+   | Produktions-Branch | vorerst `dev` (nach dem Merge `main`) |
    | Framework-Vorgabe | keine (None) |
    | Build-Befehl | leer lassen |
    | Build-Ausgabeordner | `app` |
@@ -60,20 +71,18 @@ deshalb erst eingetragen, wenn `main` die App enthält.
 
 4. Speichern und deployen.
 
-Solange es `main` noch nicht gibt, kann Cloudflare kein
-Produktions-Deployment bauen. Das ist bis zum ersten Merge so erwartet
-und betrifft die Vorschau nicht.
+Solange es `main` noch nicht gibt, baut Cloudflare `dev` als
+Produktion; die Adresse `settlement-analysis-6w8.pages.dev` zeigt dann
+den Stand von `dev`.
 
-## 2 Vorschau-Branch
+## 2 Produktions- und Vorschau-Branch (nach dem Merge dev → main)
 
 1. Im Projekt: **Settings**, Abschnitt **Builds**, **Branch control**.
-2. Produktions-Branch: `main`, automatische Deployments ein.
-3. Vorschau-Branches: «Custom branches», einschliessen `dev`.
+2. Production branch: `main`, automatische Deployments ein.
+3. Preview branch: «Custom», Include `dev`.
 
-Ein Vorschau-Deployment entsteht bei einem Push auf `dev`. Wurde `dev`
-schon vor dem Anlegen des Projekts gepusht, braucht es einen weiteren
-Push (ein beliebiger neuer Commit auf `dev`), damit die erste Vorschau
-gebaut wird.
+Danach entsteht bei jedem Push auf `dev` ein Vorschau-Deployment, bei
+jedem Push oder Merge auf `main` ein Produktions-Deployment.
 
 Adressen eines Vorschau-Deployments:
 
@@ -163,8 +172,11 @@ Vorher lokal: `npm test` und `node tests/browser/check.mjs` grün.
 5. **Phone.** Auf einem echten Handy öffnen: Eingaben eingeklappt über
    den Diagrammen, aufklappbar, kein seitliches Scrollen, Zahlentastatur
    in den Eingabefeldern, Legenden unter den Diagrammen.
-6. **Dunkelmodus.** Betriebssystem auf dunkel stellen: Seite und
-   Diagramme dunkel, Kategorie-Etikett gut lesbar.
+6. **Farbschema.** Umschalter oben rechts: «System» folgt dem
+   Betriebssystem, «Light» und «Dark» erzwingen das Schema, auch gegen
+   die Systemeinstellung. Seite und Diagramme wechseln sofort, das
+   Kategorie-Etikett bleibt gut lesbar. Nach dem Neuladen bleibt die
+   Wahl erhalten (im Browser gespeichert, nicht im Link).
 7. **PNG.** In jedem Diagramm das Speichern-Symbol der Werkzeugleiste:
    Es wird eine PNG-Datei geladen, im hellen Thema, auch im Dunkelmodus.
 8. **CSV.** «Export CSV»: Datei mit den Abschnitten Inputs, Results,

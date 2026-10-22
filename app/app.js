@@ -13,6 +13,7 @@ import { renderInputs } from './ui/inputs.js';
 import { renderResults } from './ui/results.js';
 import { createPlots } from './plots/index.js';
 import { renderInfo } from './info.js';
+import { setupThemeSwitch } from './ui/theme.js';
 
 /** @typedef {import('./state.js').State} State */
 /** @typedef {import('./model.js').Result} Result */
@@ -153,8 +154,9 @@ async function main() {
     wide.addEventListener('change', fold);
     fold();
 
-    // plots follow the light/dark theme
+    // plots follow the colour scheme: system setting or the switch
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => plots.setTheme());
+    setupThemeSwitch($('theme-switch'), () => plots.setTheme());
 
     run();
     /** for the headless checks */

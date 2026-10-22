@@ -5,7 +5,7 @@ number field may go beyond the slider range; only values rejected by
 validate() (app/state.js) are marked and not calculated.
 */
 import {
-    tunnelFields, BUILDING_CENTRE_FIELDS, BUILDING_EDGE_FIELDS, FIELD_WIDTH_FIELD, FL_FIELD, DX_FIELD,
+    tunnelFields, SPACING_FIELD, BUILDING_CENTRE_FIELDS, BUILDING_EDGE_FIELDS, FIELD_WIDTH_FIELD, FL_FIELD, DX_FIELD,
     activeFields, getPath, parseNumber,
 } from '../state.js';
 
@@ -98,6 +98,7 @@ export function renderInputs(container, on) {
 
     const countSeg = segmented('count', [['1', '1 tunnel'], ['2', '2 tunnels']],
                                (v) => on.onCount(v === '2' ? 2 : 1));
+    const spacingRow = field(SPACING_FIELD);
     const tunnelBoxes = [0, 1].map((j) => h('div', { class: 'tunnel' }, [
         h('h3', {}, [`Tunnel ${j + 1}`]),
         ...tunnelFields(j).map(field),
@@ -110,7 +111,7 @@ export function renderInputs(container, on) {
     tied.addEventListener('change', () => on.onTied(tied.checked));
 
     container.append(
-        h('fieldset', {}, [h('legend', {}, ['Tunnels']), countSeg, ...tunnelBoxes]),
+        h('fieldset', {}, [h('legend', {}, ['Tunnels']), countSeg, spacingRow, ...tunnelBoxes]),
         h('fieldset', {}, [
             h('legend', {}, ['Building']), buildingSeg,
             ...BUILDING_CENTRE_FIELDS.map(field), ...BUILDING_EDGE_FIELDS.map(field),

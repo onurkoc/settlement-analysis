@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { defaultState, switchTunnels, cloneState } from '../app/state.js';
 import { compute, summaryRows, coreTunnels, modeText } from '../app/model.js';
 import { buildCsv, cell, SEP, EOL } from '../app/csv.js';
-import { alignZero, zeroFraction, troughRanges, damageRanges } from '../app/plots/ranges.js';
+import { alignZero, zeroFraction, troughRanges, damageRanges, xRange } from '../app/plots/ranges.js';
 import { troughProfile } from '../app/core/trough.js';
 import { categoryAreas, areaLabelPosition } from '../app/plots/damage.js';
 import { limitCurves, principalStrain, DAMAGE_LIMITS } from '../app/core/damage.js';
@@ -77,7 +77,8 @@ test('CSV: sections, separator, units, SI values', () => {
     for (const name of ['# Inputs', '# Results', '# Trough', '# Fields']) {
         assert.ok(lines.some((l) => l.startsWith(name)), name);
     }
-    assert.ok(lines.includes(['tunnel_2_x', '6.75', 'm'].join(SEP)));
+    assert.ok(lines.includes(['tunnel_spacing_c', '13.5', 'm'].join(SEP)));
+    assert.ok(lines.includes(['tunnel_2_x_derived', '6.75', 'm'].join(SEP)));
     assert.ok(lines.includes(['tunnel_1_VL', '0.01', '-'].join(SEP)));
     const header = lines.indexOf(['x [m]', 'S_1 [m]', 'S_2 [m]', 'S [m]', 'dS/dx [-]', 'Sh [m]', 'eps_h [-]'].join(SEP));
     assert.ok(header > 0);
@@ -111,10 +112,11 @@ test('zero of both y axes at the same height, data inside', () => {
     }
     for (const s of [ONE, TWO]) {
         const r = compute(s);
-        const { y, depth } = troughRanges(r);
+        const frame = { width: 800, height: 330, xSpan: 2 * r.R };
+        const { y, depth } = troughRanges(r, frame);
         assert.ok(Math.abs(zeroFraction(...y) - zeroFraction(...depth)) < 1e-12);
         assert.ok(y[0] < -r.trough.Smax * 1000);
-        assert.ok(depth[0] < -Math.max(...r.tunnels.map((t) => t.H + t.D / 2)));
+        assert.ok(depth[0] < -Math.max(...r.tunnels.map((t) => t.H)));
     }
 });
 
@@ -156,5 +158,36 @@ test('category names inside their areas', () => {
         const p = areaLabelPosition(lo, hi);
         const e = principalStrain(p.x, p.y);
         assert.ok(e > lo && e < hi, `area ${k}: ${e}`);
+    }
+});
+
+test('trough plot: tunnel circles (radius D/2 on the x axis) inside the frame, H = 5 ... 60 m, D = 2 ... 20 m', () => {
+    for (const [width, height] of [[850, 330], [230, 300]]) {
+        for (const H of [5, 30, 60]) {
+            for (const D of [2, 10, 20]) {
+                for (const count of [1, 2]) {
+                    let s = defaultState();
+                    s.tunnels[0] = { H, D, VL: 1, K: 0.35 };
+                    if (count === 2) {
+                        s = switchTunnels(s, 2);
+                        s.c = Math.max(13.5, D);
+                    }
+                    const r = compute(s);
+                    const [x0, x1] = xRange(r, { width, height });
+                    const frame = { width, height, xSpan: x1 - x0 };
+                    const { y, depth } = troughRanges(r, frame);
+                    const span = depth[1] - depth[0];
+                    for (const t of r.tunnels) {
+                        const centre = (depth[1] + t.H) / span;          // from the top, fraction
+                        const rho = (t.D / 2) * (width / frame.xSpan) / height;
+                        const label = `${width}x${height} H=${H} D=${D} n=${count}`;
+                        assert.ok(centre - rho >= 0 && centre + rho <= 1, label);
+                        // horizontally inside the x range
+                        assert.ok(Math.abs(t.x) + t.D / 2 <= x1, label);
+                    }
+                    assert.ok(Math.abs(zeroFraction(...y) - zeroFraction(...depth)) < 1e-12);
+                }
+            }
+        }
     }
 });

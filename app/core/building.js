@@ -25,8 +25,9 @@ Assumptions (see README, section Method):
   and β = 0 for any trough.
 - f_L reduces the lateral strain; f_L = 0 for floors tied to the walls
   or a grade beam (Cording et al. 2010, Fig. 2), then εp = β/2.
-- Screening (first stage): Rankin (1988) as given by Franzius (2003),
-  §2.4.2.1: maximum slope θ < 1/500 and maximum settlement
+- Screening: first stage of the three-stage assessment after Mair et
+  al. (1996), limits after Rankin (1988), both as given by Franzius
+  (2003), §2.4.2: maximum slope θ < 1/500 and maximum settlement
   S_v,max < 10 mm at the building ⇒ negligible risk of damage.
 */
 import { troughAt, ceilDiv, checkTunnel, DEFAULT_DX } from './trough.js';

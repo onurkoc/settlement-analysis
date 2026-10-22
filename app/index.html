@@ -6,6 +6,7 @@
 <title>Settlement Analysis – Onur Koc</title>
 <meta name="description" content="Settlement trough above one or two tunnels and damage assessment of a building (principal strain criterion after Cording et al. 2010).">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 9h4c4 0 5 9 9 9s5-9 9-9h4' fill='none' stroke='%23c2410c' stroke-width='3'/%3E%3Ccircle cx='16' cy='25' r='4' fill='none' stroke='%23c2410c' stroke-width='2'/%3E%3C/svg%3E">
+<script src="theme-init.js"></script>
 <link rel="stylesheet" href="vendor/katex-0.19.0/katex.min.css">
 <link rel="stylesheet" href="style.css">
 <script src="vendor/bokeh-3.10.1.min.js"></script>
@@ -19,7 +20,14 @@
       <p class="eyebrow">Onur Koc · Tunnel &amp; Geotechnical Engineering</p>
       <h1>Settlement Analysis</h1>
     </div>
-    <a class="back" href="https://apps.onurkoc.net">← All apps</a>
+    <div class="top-actions">
+      <div class="seg theme-switch" id="theme-switch" role="radiogroup" aria-label="Colour scheme">
+        <label><input type="radio" name="theme" value="system"><span>System</span></label>
+        <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+        <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+      </div>
+      <a class="back" href="https://apps.onurkoc.net">← All apps</a>
+    </div>
   </div>
   <nav class="wrap tabs" role="tablist" aria-label="Sections">
     <button type="button" role="tab" id="tab-btn-calc" aria-controls="tab-calc" aria-selected="true">Calculation</button>
@@ -62,7 +70,7 @@
     <p class="note">Estimate for preliminary studies; it does not replace a project-specific assessment.</p>
 
     <h3>Settlement trough</h3>
-    <p>Gaussian trough above each tunnel <i>j</i> (Peck 1969; O'Reilly &amp; New 1982), the troughs of two tunnels superposed. Greenfield, at the ground surface. Settlement <i>S</i> positive downwards, <i>x</i> to the right.</p>
+    <p>Gaussian trough above each tunnel <i>j</i> (Peck 1969; O'Reilly &amp; New 1982), the troughs of two tunnels superposed. Greenfield, at the ground surface. Settlement <i>S</i> positive downwards. <i>x</i> is measured from the tunnel axis (1 tunnel) or from the midpoint between the axes (2 tunnels), positive to the right; the axes lie at <span class="tex-inline" data-tex="x_1 = 0"></span>, or at <span class="tex-inline" data-tex="x_{1,2} = \mp c/2"></span> with the spacing <span class="tex-inline" data-tex="c"></span>. Only the building moves.</p>
     <div class="formulas">
       <div class="tex" data-tex="i_j = K_j\,H_j"></div>
       <div class="tex" data-tex="S_{\max,j} = \dfrac{V_{L,j}\,\pi D_j^2/4}{\sqrt{2\pi}\;i_j}"></div>
@@ -72,7 +80,7 @@
       <div class="tex" data-tex="S_h(x) = -\sum_j S_j(x)\,\dfrac{x-x_j}{H_j}"></div>
       <div class="tex" data-tex="\varepsilon_h(x) = \dfrac{dS_h}{dx} = \sum_j \dfrac{S_j(x)}{H_j}\left(\dfrac{(x-x_j)^2}{i_j^2}-1\right)"></div>
     </div>
-    <p class="symbols"><span class="tex-inline" data-tex="x_j, H_j, D_j"></span>: axis position, axis depth, equivalent diameter; <span class="tex-inline" data-tex="V_L"></span>: volume loss; <span class="tex-inline" data-tex="K"></span>: trough width factor; <span class="tex-inline" data-tex="i"></span>: distance of the inflection point from the axis; <span class="tex-inline" data-tex="S_h"></span>: horizontal displacement towards the axis; <span class="tex-inline" data-tex="\varepsilon_h"></span>: horizontal strain, extension positive.</p>
+    <p class="symbols"><span class="tex-inline" data-tex="x_j, H_j, D_j"></span>: axis position (0 or ±c/2), axis depth, equivalent diameter; <span class="tex-inline" data-tex="V_L"></span>: volume loss; <span class="tex-inline" data-tex="K"></span>: trough width factor; <span class="tex-inline" data-tex="i"></span>: distance of the inflection point from the axis; <span class="tex-inline" data-tex="S_h"></span>: horizontal displacement towards the axis; <span class="tex-inline" data-tex="\varepsilon_h"></span>: horizontal strain, extension positive.</p>
 
     <h3>Trough width factor K</h3>
     <table class="data">
@@ -114,6 +122,7 @@
     <h3>Assumptions</h3>
     <ul>
       <li>Greenfield movements, no interaction between ground and building; the building follows the trough.</li>
+      <li>Two tunnels: the troughs are superposed independently; interaction between closely spaced tunnels (narrow pillar) is not considered.</li>
       <li>Tilt = slope of the chord over the whole building (beam assumption, Cording et al. 2010, Fig. 5b). If the distortion concentrates in one bay (Fig. 5a), the tilt is smaller and β is underestimated; Cording et al. report β between 2Δ/L and 4Δ/L.</li>
       <li>Only extension counts: compressive lateral strain is set to zero.</li>
       <li>f<sub>L</sub> reduces the lateral strain; f<sub>L</sub> = 0 for floors tied to the walls or a grade beam (Cording et al. 2010, Fig. 2).</li>
@@ -128,7 +137,7 @@
       <li>Cording, E.J., Long, J.L., Son, M., Laefer, D., Ghahreman, B. (2010): Assessment of excavation-induced building damage. In: Arduino, P., Hashash, Y., Finno, R. (eds.), Earth Retention Conference 3, Proceedings of the 2010 Earth Retention Conference, Bellevue, Washington. ASCE. doi:10.1061/41128(384)7.</li>
       <li>Franzius, J.N. (2003): Behaviour of buildings due to tunnel induced subsidence. PhD thesis, University of London (Imperial College of Science, Technology and Medicine).</li>
       <li>Mair, R.J., Taylor, R.N., Burland, J.B. (1996): Prediction of ground movements and assessment of risk of building damage due to bored tunnelling. Proc. of the International Symposium on Geotechnical Aspects of Underground Construction in Soft Ground, 713–718. Balkema, Rotterdam.</li>
-      <li>O'Reilly, M.P., New, B.M. (1982): Settlements above tunnels in the United Kingdom – their magnitude and prediction. Tunnelling 82, 55–64. The Institution of Mining and Metallurgy, London.</li>
+      <li>O'Reilly, M.P., New, B.M. (1982): Settlements above tunnels in the United Kingdom – their magnitude and prediction. Tunnelling '82, The Institution of Mining and Metallurgy, London.</li>
       <li>Peck, R.B. (1969): Deep excavations and tunneling in soft ground. Proc. of the 7th Int. Conference on Soil Mechanics and Foundation Engineering, State of the art volume, 225–290. Sociedad Mexicana de Mecánica de Suelos.</li>
       <li>Rankin, W.J. (1988): Ground movements resulting from urban tunnelling: predictions and effects. Engineering geology of underground movements, 79–92. The Geological Society, London.</li>
     </ul>

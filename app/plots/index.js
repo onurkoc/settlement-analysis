@@ -66,11 +66,39 @@ export async function createPlots(B, el) {
     trough.plot.properties.inner_width.change.connect(alignFrames);
     trough.plot.properties.outer_width.change.connect(alignFrames);
     alignFrames();
+    /** @type {Result | null} */
+    let last = null;
+    /** @type {number[]} x range as set by fitX() */
+    let fittedX = [];
+
+    /**
+     * x range from the result and the frame of the trough plot (the
+     * tunnel circles must fit). force = false (frame size changed): only
+     * if the user has not zoomed or panned.
+     * @param {boolean} force
+     */
+    function fitX(force) {
+        if (!last) return;
+        if (!force && (sharedX.start !== fittedX[0] || sharedX.end !== fittedX[1])) return;
+        const p = trough.plot;
+        const [a, b] = xRange(last, { width: p.inner_width, height: p.inner_height });
+        if (!force && a === fittedX[0] && b === fittedX[1]) return;
+        sharedX.setv({ start: a, end: b, reset_start: a, reset_end: b });
+        fittedX = [sharedX.start, sharedX.end];
+    }
+
+    // the size of the tunnel circles depends on the frame
+    const onResize = () => {
+        fitX(false);
+        trough.refit();
+    };
+    trough.plot.properties.inner_width.change.connect(onResize);
+    trough.plot.properties.inner_height.change.connect(onResize);
 
     /** @param {Result} r */
     function update(r) {
-        const [a, b] = xRange(r);
-        sharedX.setv({ start: a, end: b, reset_start: a, reset_end: b });
+        last = r;
+        fitX(true);
         building.update(r);
         trough.update(r);
         damage.update(r);
