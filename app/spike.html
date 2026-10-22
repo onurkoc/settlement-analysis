@@ -244,6 +244,11 @@ try {
         return new Uint8Array(await b.arrayBuffer());
     };
     /** @type {any} */ (window).spike.view = view;
+    /** @type {any} */ (window).spike.tool = (name) => {
+        const tool = p.toolbar.tools.find((/** @type {any} */ t) => t.type === name || t.constructor.name === name);
+        if (name === "WheelZoomTool") p.toolbar.active_scroll = tool; else p.toolbar.active_drag = tool;
+        return tool != null;
+    };
     /** @type {any} */ (window).spike.buildingView = vb;
     /** @type {any} */ (window).spike.zeroCheck = zeroCheck;
 } catch (err) {
