@@ -1,0 +1,18 @@
+# third-party reports and papers (client documents, copyrighted), never commit
+References/
+
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+.idea
+.vscode
+
+# local working files, not for the public repo
+CLAUDE.md
+STATUS.md
+
+# legacy apps and notebook exports (third-party material), kept locally only
+legacy/
+# notes with references to non-public documents
+docs/*.local.md

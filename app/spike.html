@@ -1,0 +1,255 @@
+<!doctype html>
+<!--
+BokehJS 3.10.1 spike (phase 0), deleted again in phase 2.
+Checks the API calls the app needs; every check writes a line into the
+list below and into window.spike.results (read by the headless test).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BokehJS spike</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; background: #fff; color: #222; }
+  #controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  .plot { width: 100%; }
+  #results { font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .fail { color: #b00; }
+</style>
+<script src="vendor/bokeh-3.10.1.min.js"></script>
+<script src="vendor/bokeh-api-3.10.1.min.js"></script>
+</head>
+<body>
+<h1>BokehJS spike</h1>
+<div id="controls">
+  <label>VL [%] <input id="vl" type="range" min="0.1" max="3" step="0.1" value="1"></label>
+  <label>H [m] <input id="h" type="number" min="5" max="60" step="0.5" value="30"></label>
+  <button id="png" type="button">Save PNG</button>
+</div>
+<div id="p_building" class="plot"></div>
+<div id="p_trough" class="plot"></div>
+<ol id="results"></ol>
+
+<script type="module">
+// @ts-check
+/* global Bokeh */
+const B = /** @type {any} */ (window).Bokeh;
+/** @type {{name: string, ok: boolean, info?: any}[]} */
+const results = [];
+/** @type {any} */ (window).spike = { results, done: false };
+
+/**
+ * @param {string} name
+ * @param {boolean} ok
+ * @param {any} [info]
+ */
+function report(name, ok, info) {
+    results.push({ name, ok, info });
+    const li = document.createElement('li');
+    li.textContent = `${ok ? 'OK  ' : 'FAIL'} ${name}${info === undefined ? '' : ' – ' + JSON.stringify(info)}`;
+    if (!ok) li.className = 'fail';
+    document.getElementById('results')?.append(li);
+}
+
+/**
+ * Model class: top level of the Bokeh namespace or the registry.
+ * @param {string} name
+ */
+function model(name) {
+    const top = B[name];
+    if (top) return top;
+    return B.Models.get(name);
+}
+
+window.addEventListener('error', (e) => report('window error', false, String(e.message)));
+
+// --- data (single Gaussian trough, only for the spike) ---------------
+/** @param {number} vl  [%] @param {number} h  [m] */
+function trough(vl, h) {
+    const k = 0.35, d = 10, i = k * h;
+    const smax = vl / 100 * Math.PI * d * d / 4 / (Math.sqrt(2 * Math.PI) * i);
+    const x = [], s = [], sh = [], n = [];
+    for (let j = 0; j <= 1000; j++) {
+        const xx = -50 + j * 0.1;
+        const ss = smax * Math.exp(-xx * xx / (2 * i * i));
+        const slope = -ss * xx / (i * i);
+        x.push(xx);
+        s.push(-ss * 1000);             // plotted downwards, mm
+        sh.push(-ss * xx / h * 1000);   // mm
+        n.push(slope === 0 ? Infinity : 1 / Math.abs(slope));
+    }
+    return { x, s, sh, n, n_txt: n.map((v) => Number.isFinite(v) ? '1/' + v.toFixed(0) : '–') };
+}
+
+/**
+ * Ranges with zero at the same height on both axes.
+ * @param {number} lo1 @param {number} hi1  left axis data (lo1 < 0 < hi1)
+ * @param {number} lo2 @param {number} hi2  right axis data
+ */
+function alignZero(lo1, hi1, lo2, hi2) {
+    // fraction of the height below zero; take the larger one for both
+    const f = Math.max(-lo1 / (hi1 - lo1), -lo2 / (hi2 - lo2));
+    // keep the upper part, extend the lower part
+    return [hi1 * f / (f - 1), hi1, hi2 * f / (f - 1), hi2];
+}
+
+try {
+    const Plotting = B.Plotting;
+    report('Bokeh.version', B.version === '3.10.1', B.version);
+    for (const name of ['ColumnDataSource', 'Range1d', 'LinearAxis', 'Span', 'BoxAnnotation',
+                        'HoverTool', 'Legend', 'SaveTool', 'Label']) {
+        report(`model ${name} via Bokeh.${name}`, typeof B[name] === 'function');
+    }
+
+    let data = trough(1, 30);
+    const source = new (model('ColumnDataSource'))({ data });
+    const tunnel = new (model('ColumnDataSource'))({ data: { x: [0], y: [-30], r: [5] } });
+    const building = new (model('ColumnDataSource'))({ data: { left: [-10], right: [10], bottom: [0], top: [1] } });
+
+    // shared x range for both plots
+    const xRange = new (model('Range1d'))({ start: -50, end: 50 });
+    let [y0, y1, d0, d1] = alignZero(Math.min(...data.s) * 1.1, 10, -40, 8);
+    const yRange = new (model('Range1d'))({ start: y0, end: y1 });
+    const depthRange = new (model('Range1d'))({ start: d0, end: d1 });
+
+    const pb = Plotting.figure({
+        title: 'Building Position', height: 110, sizing_mode: 'stretch_width',
+        x_range: xRange, y_range: new (model('Range1d'))({ start: 0, end: 1 }),
+        tools: '', toolbar_location: null,
+    });
+    pb.yaxis.visible = false;
+    pb.quad({ left: { field: 'left' }, right: { field: 'right' }, bottom: { field: 'bottom' },
+              top: { field: 'top' }, source: building, fill_color: '#b3de69', line_color: null });
+    report('figure + quad (building)', true);
+
+    const p = Plotting.figure({
+        title: 'Settlement trough', height: 420, sizing_mode: 'stretch_width',
+        x_range: xRange, y_range: yRange, extra_y_ranges: { depth: depthRange },
+        tools: 'pan,wheel_zoom,box_zoom,reset,save', toolbar_location: 'above',
+        x_axis_label: 'x [m]', y_axis_label: 'Settlement [mm]',
+    });
+    p.add_layout(new (model('LinearAxis'))({ y_range_name: 'depth', axis_label: 'Depth [m]' }), 'right');
+    report('extra_y_ranges + LinearAxis right', true);
+
+    const rS = p.line({ field: 'x' }, { field: 's' }, { source, line_width: 2, legend_label: 'Settlement' });
+    const rH = p.line({ field: 'x' }, { field: 'sh' }, { source, line_width: 2, line_color: 'purple', legend_label: 'Sh' });
+    report('line with legend_label', p.legend.length === 1 || (p.legend.items ?? []).length > 0);
+
+    const rC = p.circle({ x: { field: 'x' }, y: { field: 'y' }, radius: { field: 'r' }, source: tunnel,
+                          y_range_name: 'depth', fill_color: 'green', fill_alpha: 0.3, line_width: 2 });
+    report('circle with radius on second y axis', rC.y_range_name === 'depth');
+
+    const spanL = new (model('Span'))({ location: -10, dimension: 'height', line_dash: [6, 4], line_color: '#b3de69', line_width: 3 });
+    const spanR = new (model('Span'))({ location: 10, dimension: 'height', line_dash: [6, 4], line_color: '#b3de69', line_width: 3 });
+    const axis0 = new (model('Span'))({ location: 0, dimension: 'width', line_color: 'silver', line_width: 2 });
+    p.add_layout(spanL); p.add_layout(spanR); p.add_layout(axis0);
+    report('Span (add_layout)', true);
+
+    const box = new (model('BoxAnnotation'))({ left: -10, right: 10, fill_color: '#b3de69', fill_alpha: 0.15 });
+    p.add_layout(box);
+    report('BoxAnnotation (add_layout)', true);
+
+    const hover = new (model('HoverTool'))({
+        renderers: [rS], mode: 'vline',
+        tooltips: [['x', '@x{0.0} m'], ['S', '@s{0.00} mm'], ['Slope', '@n_txt'], ['n raw', '@n{0}'], ['Sh', '@sh{0.00} mm']],
+    });
+    p.add_tools(hover);
+    report('HoverTool vline with formatted fields', true);
+
+    p.legend.location = 'bottom_left';
+    p.legend.click_policy = 'hide';
+    report('legend location / click_policy', p.legend.location === 'bottom_left');
+
+    // Plotting.show(pb, ...) and Plotting.show(p, ...) would put the plots
+    // into two documents; the shared x range then throws "models must be
+    // owned by only a single document". One document, two roots, each
+    // root rendered into its own element:
+    const doc = new B.Document();
+    doc.add_root(pb);
+    doc.add_root(p);
+    const views = await B.embed.add_document_standalone(doc, document.getElementById('p_trough'), {
+        [pb.id]: document.getElementById('p_building'),
+        [p.id]: document.getElementById('p_trough'),
+    });
+    const view = views.get_one ? views.get_one(p) : views.find_one(p);
+    const vb = views.get_one ? views.get_one(pb) : views.find_one(pb);
+    report('one Document, two roots, add_document_standalone with roots map', view != null && vb != null,
+           { manager: views?.constructor?.name, get_one: typeof views.get_one, find_one: typeof views.find_one });
+    report('view.export is a function', typeof view.export === 'function', { type: view?.constructor?.name });
+
+    // zero of both y axes at the same pixel
+    const zeroCheck = () => {
+        const frame = view.frame;
+        const yl = frame.y_scale.compute(0);
+        const yr = frame.y_scales.get('depth').compute(0);
+        return { left: yl, right: yr, ok: Math.abs(yl - yr) < 1e-6 };
+    };
+    let z = zeroCheck();
+    report('zero of both y axes aligned (initial)', z.ok, z);
+
+    // canvas width follows the container
+    const w0 = view.frame.bbox.width;
+    report('responsive width (frame width > 0)', w0 > 100, { frame_width: w0, window: window.innerWidth });
+
+    // --- data update without rebuild -----------------------------------
+    const update = () => {
+        const vl = Number(/** @type {HTMLInputElement} */ (document.getElementById('vl')).value);
+        const h = Number(/** @type {HTMLInputElement} */ (document.getElementById('h')).value);
+        data = trough(vl, h);
+        source.data = data;                         // replace the whole object
+        tunnel.data = { x: [0], y: [-h], r: [5] };
+        [y0, y1, d0, d1] = alignZero(Math.min(...data.s) * 1.1, 10, -(h + 10), 8);
+        yRange.setv({ start: y0, end: y1, reset_start: y0, reset_end: y1 });
+        depthRange.setv({ start: d0, end: d1, reset_start: d0, reset_end: d1 });
+    };
+    document.getElementById('vl')?.addEventListener('input', update);
+    document.getElementById('h')?.addEventListener('input', update);
+
+    const before = view.renderer_views.get(rS);
+    /** @type {HTMLInputElement} */ (document.getElementById('vl')).value = '2.5';
+    /** @type {HTMLInputElement} */ (document.getElementById('h')).value = '20';
+    update();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const after = view.renderer_views.get(rS);
+    report('source.data = {...} updates, same renderer view', before === after && source.data.s.length === 1001,
+           { min_s: Math.min(...source.data.s).toFixed(2) });
+    z = zeroCheck();
+    report('zero aligned after range update (setv)', z.ok, z);
+
+    // in-place change + change.emit (2.3.1 style)
+    source.data.s[500] = -999;
+    source.change.emit();
+    report('in-place mutation + change.emit() accepted', source.data.s[500] === -999);
+    update();
+
+    // spans / box move
+    spanL.location = -5; spanR.location = 15; box.setv({ left: -5, right: 15 });
+    building.data = { left: [-5], right: [15], bottom: [0], top: [1] };
+    report('Span.location / BoxAnnotation update', spanL.location === -5);
+
+    // --- PNG export -------------------------------------------------------
+    const layer = view.export('png');
+    const blob = await layer.to_blob();
+    report('view.export("png").to_blob()', blob instanceof Blob && blob.type === 'image/png', { bytes: blob.size, type: blob.type });
+    document.getElementById('png')?.addEventListener('click', async () => {
+        const b = await view.export('png').to_blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(b);
+        a.download = 'settlement_trough.png';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+    /** @type {any} */ (window).spike.png = async () => {
+        const b = await view.export('png').to_blob();
+        return new Uint8Array(await b.arrayBuffer());
+    };
+    /** @type {any} */ (window).spike.view = view;
+    /** @type {any} */ (window).spike.buildingView = vb;
+    /** @type {any} */ (window).spike.zeroCheck = zeroCheck;
+} catch (err) {
+    report('exception', false, String(/** @type {any} */ (err)?.stack ?? err));
+}
+/** @type {any} */ (window).spike.done = true;
+</script>
+</body>
+</html>
