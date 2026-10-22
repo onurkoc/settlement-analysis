@@ -1,13 +1,14 @@
 # vendor
 
-Third-party libraries, stored locally (no CDN at runtime). Not changed.
+Third-party libraries, stored locally (no CDN at runtime). The files are
+not changed; of the KaTeX fonts only the `.woff2` files are kept.
 
 | File | Library | Version | Source | License |
 | --- | --- | --- | --- | --- |
 | `bokeh-3.10.1.min.js` | BokehJS core, minified (`build/js/bokeh.min.js`) | 3.10.1 | <https://registry.npmjs.org/@bokeh/bokehjs/-/bokehjs-3.10.1.tgz> | BSD-3-Clause, see `bokeh.LICENSE` |
 | `bokeh-api-3.10.1.min.js` | BokehJS plotting API (`build/js/bokeh-api.min.js`) | 3.10.1 | same package | BSD-3-Clause, see `bokeh.LICENSE` |
 | `katex-0.19.0/katex.mjs` | KaTeX, ES module (`dist/katex.mjs`) | 0.19.0 | <https://registry.npmjs.org/katex/-/katex-0.19.0.tgz> | MIT, see `katex-0.19.0/LICENSE` |
-| `katex-0.19.0/katex.min.css`, `katex-0.19.0/fonts/` | KaTeX style sheet and fonts (`dist/`) | 0.19.0 | same package | MIT |
+| `katex-0.19.0/katex.min.css`, `katex-0.19.0/fonts/*.woff2` | KaTeX style sheet and fonts (`dist/`) | 0.19.0 | same package | MIT |
 
 Integrity of the npm packages (as published on npm):
 
@@ -34,8 +35,9 @@ Use:
   needed (inputs are plain HTML fields, formulas use KaTeX).
 - KaTeX is imported by `app/info.js` when the tab «Information» is
   opened the first time; `index.html` links the style sheet, which
-  loads the fonts from `katex-0.19.0/fonts/` (the browsers use the
-  `.woff2` files; `.woff` and `.ttf` are kept as in the package).
+  loads the fonts from `katex-0.19.0/fonts/`. Only the `.woff2` files
+  are kept: the style sheet lists `.woff2` first, and all current
+  browsers read it, so `.woff` and `.ttf` are never requested.
 
 The files in this folder are excluded from the type check
 (`jsconfig.json`). On Cloudflare Pages they are kept in the browser for

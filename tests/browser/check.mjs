@@ -61,6 +61,7 @@ try {
     const pending = new Map();
     const errors = [];
     const requests = [];
+    const failed = [];
     ws.addEventListener('message', (ev) => {
         const m = JSON.parse(ev.data);
         if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
@@ -74,6 +75,9 @@ try {
             errors.push(`log: ${m.params.entry.text} ${m.params.entry.url ?? ''}`);
         }
         if (m.method === 'Network.requestWillBeSent') requests.push(m.params.request.url);
+        if (m.method === 'Network.responseReceived' && m.params.response.status >= 400) {
+            failed.push(`${m.params.response.status} ${m.params.response.url}`);
+        }
     });
     const send = (method, params = {}) => new Promise((resolve, reject) => {
         const i = ++id;
@@ -398,6 +402,10 @@ try {
     // ---- console and requests ------------------------------------------------
     const foreign = requests.filter((u) => !u.startsWith(ORIGIN) && !u.startsWith('data:') && !u.startsWith('blob:'));
     check('no requests to other hosts', foreign.length === 0, foreign);
+    const fonts = requests.filter((u) => u.includes('/katex-0.19.0/fonts/'));
+    check('KaTeX fonts: only .woff2 requested', fonts.length > 0 && fonts.every((u) => u.endsWith('.woff2')), fonts.length);
+    const missing = failed.filter((u) => !/favicon\.ico/.test(u));
+    check('no request answered with an error (404 ...)', missing.length === 0, missing);
     // the server answers /favicon.ico with 404 only if the page asks for it
     const real = errors.filter((e) => !/favicon\.ico/.test(e));
     check('console without errors', real.length === 0, real);

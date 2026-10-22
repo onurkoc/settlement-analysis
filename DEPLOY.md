@@ -100,19 +100,10 @@ Pages-Projekt einzutragen: Die Adresse antwortet dann mit einem Fehler.
 
 ## 4 Cache-Regel der Zone
 
-In der Zone `onurkoc.net` gibt es die Cache-Regel «Pages-Apps: Header
-der Quelle». Sie sorgt dafür, dass für die Pages-Apps die
-Cache-Control-Köpfe aus `_headers` gelten und nicht die Vorgaben der
-Zone.
-
-1. Zone `onurkoc.net` öffnen, **Caching**, **Cache Rules**.
-2. Regel «Pages-Apps: Header der Quelle» bearbeiten.
-3. Im Ausdruck den Hostnamen `settlement.onurkoc.net` zu den übrigen
-   Hostnamen hinzufügen (gleiche Bedingung wie für die anderen Apps,
-   z. B. «Hostname ist in der Liste» bzw. `http.host in {...}`). Die
-   übrigen Einstellungen der Regel nicht ändern.
-4. Speichern. Danach Punkt 2 der Prüfliste auf der eigenen Domain
-   wiederholen.
+Der Hostname `settlement.onurkoc.net` wird in die bestehende
+Cache-Regel «Pages-Apps: Header der Quelle» der Zone `onurkoc.net`
+aufgenommen. Danach Punkt 2 der Prüfliste auf der eigenen Domain
+wiederholen.
 
 ## Cache-Regeln der App (`app/_headers`)
 
@@ -121,7 +112,7 @@ Cloudflare Pages liest die Datei `_headers` im Ausgabeordner.
 | Dateien | Cache-Control | Wirkung |
 | --- | --- | --- |
 | `/`, `index.html`, `*.js`, `*.css`, `core/*.js`, `ui/*.js`, `plots/*.js` | `no-cache` | Der Browser fragt bei jedem Aufruf nach, ob die Datei neu ist. Eine neue Version erscheint beim normalen Neuladen. |
-| `vendor/*` | `public, max-age=31536000, immutable` | BokehJS und KaTeX (mit Fonts) bleiben ein Jahr im Browser. |
+| `vendor/*` | `public, max-age=31536000, immutable` | BokehJS und KaTeX (mit den `.woff2`-Fonts) bleiben ein Jahr im Browser. |
 
 Zwei Regeln, die beim Ändern zu beachten sind:
 
@@ -152,7 +143,7 @@ Vorher lokal: `npm test` und `node tests/browser/check.mjs` grün.
      `…/ui/inputs.js`, `…/plots/trough.js`: `Cache-Control: no-cache`,
      genau ein Wert.
    - `…/vendor/bokeh-3.10.1.min.js`, `…/vendor/katex-0.19.0/katex.mjs`,
-     eine Datei aus `…/vendor/katex-0.19.0/fonts/`:
+     eine `.woff2`-Datei aus `…/vendor/katex-0.19.0/fonts/`:
      `Cache-Control: public, max-age=31536000, immutable`, genau ein
      Wert.
    - `.js` und `.mjs` kommen mit einem JavaScript-Typ

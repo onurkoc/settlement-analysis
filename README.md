@@ -27,7 +27,7 @@ Author: Onur Koc – more apps: <https://apps.onurkoc.net/>
   lateral strain ε_L, principal extension strain ε_p, damage category
   with typical crack width; pointwise or with fields (structural bays)
   of width b; floors tied / grade beam.
-- First-stage screening after Rankin (1988).
+- First-stage screening (Mair et al. 1996; limits after Rankin 1988).
 - CSV export (inputs, results, trough, fields), PNG export of the
   plots, the case in the URL (link to share).
 
@@ -98,10 +98,12 @@ these values at the upper two boundaries; the table values are used on
 purpose. The crack widths are additional information only: the category
 is defined by the ease of repair.
 
-Screening, stage 1 (Rankin 1988, as given by Franzius 2003, §2.4.2.1):
-maximum slope θ < 1/500 and maximum settlement S_v,max < 10 mm at the
-building ⇒ negligible risk of damage; otherwise a second stage
-assessment is required.
+Screening: stage 1 of the three-stage assessment after Mair et al.
+(1996) (preliminary assessment, second stage assessment, detailed
+evaluation), with the limits of Rankin (1988), both as given by
+Franzius (2003), §2.4.2: maximum slope θ < 1/500 and maximum
+settlement S_v,max < 10 mm at the building ⇒ negligible risk of
+damage; otherwise a second stage assessment is required.
 
 The limit parabolas of the earlier apps (Boscardin & Cording 1989) can
 be shown for comparison («Show legacy curves»); they are not used for
@@ -189,29 +191,34 @@ Not yet done: an independent check by the author with other programs
 ## Sources
 
 - Boscardin, M.D., Cording, E.J. (1989): Building response to
-  excavation-induced settlement. Journal of Geotechnical Engineering
-  115(1), 1–21.
+  excavation-induced settlement. Journal of Geotechnical Engineering,
+  ASCE, 115(1), 1–21.
 - Burland, J.B. (1995): Assessment of risk of damage to buildings due to
-  tunnelling and excavation. Invited special lecture, 1st Int. Conf. on
+  tunnelling and excavation. Invited special lecture. 1st Int. Conf. on
   Earthquake Geotechnical Engineering, IS-Tokyo '95.
 - Cording, E.J., Long, J.L., Son, M., Laefer, D., Ghahreman, B. (2010):
-  Assessment of excavation-induced building damage. Earth Retention
-  Conference 3, ASCE, doi:10.1061/41128(384)7.
+  Assessment of excavation-induced building damage. In: Arduino, P.,
+  Hashash, Y., Finno, R. (eds.), Earth Retention Conference 3,
+  Proceedings of the 2010 Earth Retention Conference, Bellevue,
+  Washington. ASCE. doi:10.1061/41128(384)7.
 - Franzius, J.N. (2003): Behaviour of buildings due to tunnel induced
-  subsidence. PhD thesis, Imperial College London.
+  subsidence. PhD thesis, University of London (Imperial College of
+  Science, Technology and Medicine).
 - Mair, R.J., Taylor, R.N., Burland, J.B. (1996): Prediction of ground
   movements and assessment of risk of building damage due to bored
-  tunnelling. Geotechnical Aspects of Underground Construction in Soft
-  Ground, Balkema, Rotterdam, 713–718.
+  tunnelling. Proc. of the International Symposium on Geotechnical
+  Aspects of Underground Construction in Soft Ground, 713–718. Balkema,
+  Rotterdam.
 - O'Reilly, M.P., New, B.M. (1982): Settlements above tunnels in the
-  United Kingdom – their magnitude and prediction. Tunnelling '82,
-  Institution of Mining and Metallurgy, London.
-- Peck, R.B. (1969): Deep excavations and tunnelling in soft ground.
-  7th Int. Conf. on Soil Mechanics and Foundation Engineering, Mexico
-  City, State of the art volume, 225–290.
-- Rankin, W.J. (1988): Ground movements resulting from urban
-  tunnelling: predictions and effects. Engineering geology of
-  underground movements, The Geological Society, London, 79–92.
+  United Kingdom – their magnitude and prediction. Tunnelling 82, 55–64.
+  The Institution of Mining and Metallurgy, London.
+- Peck, R.B. (1969): Deep excavations and tunneling in soft ground.
+  Proc. of the 7th Int. Conference on Soil Mechanics and Foundation
+  Engineering, State of the art volume, 225–290. Sociedad Mexicana de
+  Mecánica de Suelos.
+- Rankin, W.J. (1988): Ground movements resulting from urban tunnelling:
+  predictions and effects. Engineering geology of underground movements,
+  79–92. The Geological Society, London.
 
 Typical values of K in the tab «Information» as listed in the GEO5
 online help (Fine Ltd., «Shape of subsidence trough»).
